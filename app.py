@@ -71,12 +71,11 @@ def fetch_athlete_live_track_data(athlete_name, event_type):
         if not raw_grid: return None
         
         # Standardize target substrings to cleanly locate sections down the page
-        target_keyword = "100m" if "100M" in event_type else ("200m" if "200M" in event_type else ("400m" if "400M" in event_type else "long jump"))
+        target_keyword = "100m" if "100M" in event_type else ("200m" if "200M" in event_type else ("400m" if "400M" in event_type else "longjump"))
         
         header_row_idx = -1
         for idx, row in enumerate(raw_grid):
             row_joined = "".join([str(c).lower().replace(" ", "").replace("-", "").strip() for c in row])
-            # Match keywords case-insensitively
             if target_keyword in row_joined and ("trend" in row_joined or "sprint" in row_joined or "jump" in row_joined):
                 header_row_idx = idx + 1
                 break
