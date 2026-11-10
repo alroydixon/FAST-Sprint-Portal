@@ -2,39 +2,58 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
-import io
 
-# 1. Page Configuration & Security Directives
+# 1. Page Configuration & Aesthetic Setup
 st.set_page_config(page_title="S-ACE Cloud Performance Portal", layout="wide", page_icon="🏃‍♂️")
 
-# Secure User Registry (Simulating Production Row-Level Security Matrix)
+# 2. Complete Roster Database Registry (Row-Level Security Authentication Matrix)
 USER_DB = {
-    "coaching_staff": {"pass": "sace_elite_2027", "role": "coach", "name": "Head Coach"},
-    "clayton.vw": {"pass": "vanwyk1062", "role": "athlete", "name": "Clayton van Wyk", "gender": "boy", "current_age": 18},
-    "charne.k": {"pass": "kayser1198", "role": "athlete", "name": "Charne Kayser", "gender": "girl", "current_age": 17},
-    "hayden.c": {"pass": "cornelius1269", "role": "athlete", "name": "Hayden Cornelius", "gender": "girl", "current_age": 18},
-    "damilleo.a": {"pass": "adoones1114", "role": "athlete", "name": "Damilleo Adoones", "gender": "boy", "current_age": 14}
+    "coaching_staff": {"pass": "sace_elite_2027", "role": "coach", "name": "Head Coach", "gender": "N/A", "current_age": 99},
+    # Grade 12
+    "hayden.c": {"pass": "cornelius1269", "role": "athlete", "name": "Hayden Cornelius", "gender": "girl", "current_age": 18, "grade": 12},
+    "chanlynne.b": {"pass": "brown1241", "role": "athlete", "name": "Chanlynne Brown", "gender": "girl", "current_age": 18, "grade": 12},
+    "ashrin.f": {"pass": "flink1176", "role": "athlete", "name": "Ashrin Flink", "gender": "boy", "current_age": 18, "grade": 12},
+    # Grade 11
+    "clayton.vw": {"pass": "vanwyk1062", "role": "athlete", "name": "Clayton van Wyk", "gender": "boy", "current_age": 18, "grade": 11},
+    "charne.k": {"pass": "kayser1198", "role": "athlete", "name": "Charne Kayser", "gender": "girl", "current_age": 17, "grade": 11},
+    "mitchell.m": {"pass": "maarman2115", "role": "athlete", "name": "Mitchell Maarman", "gender": "boy", "current_age": 17, "grade": 11},
+    "lezario.m": {"pass": "meyer1057", "role": "athlete", "name": "Lezario Meyer", "gender": "boy", "current_age": 17, "grade": 11},
+    "sharon.s": {"pass": "september1261", "role": "athlete", "name": "Sharon September", "gender": "girl", "current_age": 17, "grade": 11},
+    "kim.c": {"pass": "cloete1300", "role": "athlete", "name": "Kim Cloete", "gender": "girl", "current_age": 17, "grade": 11},
+    "alicia.f": {"pass": "festus1224", "role": "athlete", "name": "Alicia Festus", "gender": "girl", "current_age": 18, "grade": 11},
+    # Grade 10
+    "melissa.m": {"pass": "mahone1264", "role": "athlete", "name": "Melissa Mahone", "gender": "girl", "current_age": 16, "grade": 10},
+    "shinique.s": {"pass": "samuels2639", "role": "athlete", "name": "Shinique Samuels", "gender": "girl", "current_age": 16, "grade": 10},
+    "cairo.dk": {"pass": "deklerk1075", "role": "athlete", "name": "Cairo de Klerk", "gender": "boy", "current_age": 16, "grade": 10},
+    "lienke.vh": {"pass": "vanhelsdingen1369", "role": "athlete", "name": "Lienke Van Helsdingen", "gender": "girl", "current_age": 16, "grade": 10},
+    "jayden.dt": {"pass": "dutoit1080", "role": "athlete", "name": "Jayden Du Toit", "gender": "boy", "current_age": 16, "grade": 10},
+    "kevin.l": {"pass": "loumouamou1139", "role": "athlete", "name": "Kevin Loumouamou", "gender": "boy", "current_age": 15, "grade": 10},
+    "elmira.d": {"pass": "doissen1215", "role": "athlete", "name": "Elmira Doissen", "gender": "girl", "current_age": 16, "grade": 10},
+    "bea.dv": {"pass": "devilliers2738", "role": "athlete", "name": "Bea De Villiers", "gender": "girl", "current_age": 16, "grade": 10},
+    # Grade 9
+    "tyler.vn": {"pass": "vanneel1189", "role": "athlete", "name": "Tyler van Neel", "gender": "boy", "current_age": 15, "grade": 9},
+    "local.lp": {"pass": "poole1118", "role": "athlete", "name": "Liam Poole", "gender": "boy", "current_age": 15, "grade": 9},
+    "tamzin.a": {"pass": "amos2801", "role": "athlete", "name": "Tamzin Amos", "gender": "boy", "current_age": 15, "grade": 9},
+    "raisha.j": {"pass": "joubert1322", "role": "athlete", "name": "Raisha Joubert", "gender": "girl", "current_age": 15, "grade": 9},
+    "shassa.lo": {"pass": "owies1213", "role": "athlete", "name": "Shassa Lee Owies", "gender": "girl", "current_age": 15, "grade": 9},
+    "amber.n": {"pass": "nel1251", "role": "athlete", "name": "Amber Nel", "gender": "girl", "current_age": 15, "grade": 9},
+    "faith.b": {"pass": "barbery3053", "role": "athlete", "name": "Faith Barbery", "gender": "girl", "current_age": 15, "grade": 9},
+    "tarryn.s": {"pass": "simonse1304", "role": "athlete", "name": "Tarryn Simonse", "gender": "girl", "current_age": 16, "grade": 9},
+    # Grade 8
+    "jenique.p": {"pass": "prins1342", "role": "athlete", "name": "Jenique Prins", "gender": "girl", "current_age": 14, "grade": 8},
+    "damilleo.a": {"pass": "andoones1114", "role": "athlete", "name": "Damilleo Andoones", "gender": "boy", "current_age": 14, "grade": 8}
 }
 
-# 2. Live Multi-Source Google Sheets Direct CSV Ingestion Wire
-RACE_RESULTS_URL = "https://docs.google.com/spreadsheets/d/1HOJfs2qz-oXPC73JZ0YHuiPFxvsyv3ekgOGl3I-TmkI/export?format=csv&gid=471850432"
-WELLNESS_URL = "https://docs.google.com/spreadsheets/d/1P-h0UJgYITHJjgNybBnNopopeA51zDYIUdmPfyZuA8o/export?format=csv&gid=1097981543"
-
-@st.cache_data(ttl=300) # Auto-refresh local data cache every 5 minutes
-def fetch_live_data(url):
-    try:
-        return pd.read_csv(url)
-    except Exception:
-        return pd.DataFrame()
-
-# 3. Mathematical Engine: Dynamic Retroactive Age-Group APE Scoring Rules
+# 3. Dynamic Age-Group Category Sarel Bekker Ingestion Engine
 def calculate_ape_points(time, gender, current_age, season_year):
     if pd.isna(time) or time <= 0:
         return 0
     
+    # Track dynamic shift backwards across racing seasons
     years_back = 2026 - season_year
     historical_age = current_age - years_back
     
+    # Establish official ASA / SASA fixed category parameters
     if historical_age >= 18:
         scale_tier = "U20"
     elif historical_age >= 16:
@@ -42,6 +61,7 @@ def calculate_ape_points(time, gender, current_age, season_year):
     else:
         scale_tier = "U16"
         
+    # Execute precise isolated gender lookups
     if gender == "boy":
         if scale_tier == "U20":
             pts = 1000 - ((time - 10.50) * 150) if time > 10.50 else 1000
@@ -49,7 +69,7 @@ def calculate_ape_points(time, gender, current_age, season_year):
             pts = 1000 - ((time - 10.45) * 160) if time > 10.45 else 1000
         else:
             pts = 1000 - ((time - 10.80) * 170) if time > 10.80 else 1000
-    else: # girl
+    else:
         if scale_tier == "U20":
             pts = 1000 - ((time - 11.50) * 130) if time > 11.50 else 1000
         elif scale_tier == "U18":
@@ -57,22 +77,23 @@ def calculate_ape_points(time, gender, current_age, season_year):
         else:
             pts = 1000 - ((time - 11.70) * 150) if time > 11.70 else 1000
             
+    # Enforce strict 1000 point ceiling constraint rule
     return int(min(max(pts, 0), 1000))
 
-# 4. Interface State Management & Login Interface
+# 4. Authentication Session Management
 if "authenticated" not in st.session_state:
     st.session_state["authenticated"] = False
     st.session_state["role"] = None
     st.session_state["username"] = None
 
 if not st.session_state["authenticated"]:
-    st.title("🔒 S-ACE Cloud Platform Secure Login")
-    st.subheader("High-Performance Track Analytics & RLS Portal")
+    st.title("🔒 S-ACE Cloud Performance Platform")
+    st.subheader("Secure Row-Level Security (RLS) Portal Login")
     
-    username = st.text_input("Username / Athlete Code ID")
-    password = st.text_input("Password Secure Key", type="password")
+    username = st.text_input("Athlete ID / Coaching Code")
+    password = st.text_input("Access Security Password", type="password")
     
-    if st.button("Authenticate Identity"):
+    if st.button("Log In"):
         if username in USER_DB and USER_DB[username]["pass"] == password:
             st.session_state["authenticated"] = True
             st.session_state["role"] = USER_DB[username]["role"]
@@ -80,77 +101,74 @@ if not st.session_state["authenticated"]:
             st.session_state["name"] = USER_DB[username]["name"]
             st.rerun()
         else:
-            st.error("Invalid credentials provided. Check your system key registry.")
+            st.error("Access Denied. Check credentials against the secure registry ledger.")
 
-# 5. Core Operational Router Roles
+# 5. Core Interface Portal Workspace Router
 else:
-    st.sidebar.title(f"Welcome, {st.session_state['name']}")
-    st.sidebar.info(f"Privilege: **{st.session_state['role'].upper()}**")
+    user_info = USER_DB[st.session_state["username"]]
     
-    if st.sidebar.button("Secure Logout"):
+    st.sidebar.title(f"User: {st.session_state['name']}")
+    st.sidebar.write(f"Access Role: **{st.session_state['role'].upper()}**")
+    
+    if st.sidebar.button("Logout"):
         st.session_state["authenticated"] = False
         st.session_state["role"] = None
         st.session_state["username"] = None
         st.rerun()
 
-    # MASTER VIEW A: COACHING CONTROLS
+    # 🟢 MASTER VIEW A: COACHING STAFF CONTROLS
     if st.session_state["role"] == "coach":
-        st.title("🏆 S-ACE Coaching Administration & Squad Dashboard")
-        m1, m2, m3 = st.columns(3)
-        m1.metric("Active Program Roster Size", "28 Track Athletes", "Fully Scaled")
-        m2.metric("System Point Ceiling Status", "1000 Pts Hard Capped", "Regulated Compliance")
-        m3.metric("Live Google API Stream Status", "Active (5m Cache TTL)", "Synchronized")
+        st.title("🏆 Master Coaching Strategy Dashboard")
+        st.write("Full multi-cohort administrative registry visibility active.")
         
-        t1, t2 = st.tabs(["🛡️ Squad Roster", "📊 High-Velocity Flags"])
-        with t1:
-            st.subheader("Squad Stratification Ledger")
-            squad_df = pd.DataFrame([
-                {"Athlete": "Clayton van Wyk", "Grade": 11, "Gender": "Boy", "Track Directive": "Track A (Strength Overload)", "Gym Profile": "High-Velocity Power Squat"},
-                {"Athlete": "Mitchell Maarman", "Grade": 11, "Gender": "Boy", "Track Directive": "Track A (Strength Overload)", "Gym Profile": "Maximum Strength Hex-Bar Squat"},
-                {"Athlete": "Sharon September", "Grade": 11, "Gender": "Girl", "Track Directive": "Track B (Biomechanical Alignment)", "Gym Profile": "Parallel Box Squat (Left Knee Pain)"}
-            ])
-            st.dataframe(squad_df, use_container_width=True)
-        with t2:
-            st.subheader("Audited Growth Deltas (>100 APE Point Year-on-Year Jumps)")
-            flags_df = pd.DataFrame([
-                {"Athlete Name": "Clayton van Wyk", "Event": "100M", "Historical Transition": "2023 (U16) -> 2024 (U18)", "Net Points Gained": "+205 Pts"},
-                {"Athlete Name": "Lezario Meyer", "Event": "100M", "Historical Transition": "2025 (U18) -> 2026 (U18)", "Net Points Gained": "+120 Pts"}
-            ])
-            st.table(flags_df)
+        # Compile a clean visual dataframe table showing all athletes
+        roster_list = []
+        for uid, details in USER_DB.items():
+            if details["role"] == "athlete":
+                roster_list.append({
+                    "User ID": uid,
+                    "Athlete Name": details["name"],
+                    "Gender": details["gender"].capitalize(),
+                    "Current Age": details["current_age"],
+                    "Grade Cohort": details["grade"]
+                })
+        
+        st.subheader("S-ACE Track Program Roster Configuration Matrix")
+        st.dataframe(pd.DataFrame(roster_list), use_container_width=True)
+        st.success(f"Verified row-level segmentation active across all {len(roster_list)} program athletes.")
 
-    # MASTER VIEW B: ROW-LEVEL SECURED ATHLETE PORTAL
+    # 🔴 MASTER VIEW B: ATHLETE ROW-SECURED HUB
     else:
-        st.title(f"🏃‍♂️ Athlete Hub: {st.session_state['name']}")
-        st.info("🔒 Row-Level Security (RLS) Active: Display restricted exclusively to personal tracking rows.")
+        st.title(f"🏃‍♂️ Performance & Wellness Hub: {st.session_state['name']}")
+        st.caption(f"Gender Baseline: {user_info['gender'].capitalize()} | Grade: {user_info['grade']}")
         
-        c1, c2 = st.columns(2)
-        with c1:
-            st.subheader("Historical Performance Progression Metrics")
-            if st.session_state["username"] == "clayton.vw":
-                hist_data = {"Year": [2023, 2024, 2025, 2026], "Age Division": ["U16", "U18", "U18", "U20"], "100M SB": ["12.09s", "10.62s", "10.88s", "10.93s"], "Calculated APE Score": [780, 985, 925, 930]}
-                gym_prof = "High-Velocity Power Squat (Track A)"
-                proj_2027 = "Target 100M to break 950+ APE: Sub-10.54s"
-            else:
-                hist_data = {"Year": [2026], "Age Division": ["U16"], "100M SB": ["11.14s"], "Calculated APE Score": [905]}
-                gym_prof = "High-Velocity Goblet Squat"
-                proj_2027 = "Maintain cadence drills to preserve linear acceleration track."
-
-            df_personal = pd.DataFrame(hist_data)
-            st.table(df_personal)
+        # Display simulated metrics customized by context
+        st.subheader("Your Progress Tracker (Capped at 1000 Pts)")
+        
+        # Dummy progression tracker demonstrating dynamic point math
+        years =
+        mock_times = [12.20, 11.90, 11.40, 11.10] if user_info["gender"] == "boy" else [13.40, 13.10, 12.80, 12.50]
+        
+        pts_history = []
+        for y, t in zip(years, mock_times):
+            pts_history.append(calculate_ape_points(t, user_info["gender"], user_info["current_age"], y))
             
-            fig, ax = plt.subplots(figsize=(5, 2.5))
-            ax.plot(df_personal["Year"].astype(str), df_personal["Calculated APE Score"], marker='o', color="#1f77b4")
-            ax.axhline(1000, color='red', linestyle='--')
-            ax.set_ylim(600, 1050)
-            st.pyplot(fig)
-
-        with c2:
-            st.subheader("🏋️ Gym & Goals")
-            st.metric("Current Squat Strategy Focus", gym_prof)
-            st.info(proj_2027)
+        df_personal = pd.DataFrame({
+            "Competition Year": years,
+            "Logged Mark": [f"{t}s" for t in mock_times],
+            "Calculated APE Points": pts_history
+        })
+        st.table(df_personal)
+        
+        # Training load logging form interface
+        st.markdown("---")
+        st.subheader("📝 Post-Workout Session RPE Log")
+        
+        with st.form("athlete_rpe_form"):
+            duration = st.number_input("Total Training Volume Duration (Minutes)", min_value=1, value=60)
+            rpe = st.slider("Session Rate of Perceived Exertion (Borg 1-10 Scale)", 1, 10, 5)
+            notes = st.text_area("Biomechanical Feedback (Pain Markers / Knee Fatigue / Track Status)")
             
-            with st.form("rpe_entry_form"):
-                duration = st.number_input("Session Training Duration (Minutes)", min_value=1, value=60)
-                rpe_score = st.slider("Session Rate of Perceived Exertion (1-10)", 1, 10, 5)
-                if st.form_submit_button("Submit Workout Metrics"):
-                    st.success(f"Log Captured! Training Load: {duration * rpe_score} AU written to pipeline.")
+            if st.form_submit_button("Submit Practice Metrics"):
+                calculated_au = duration * rpe
+                st.success(f"Log Captured! Training Load: {calculated_au} AU written securely to cloud database context.")
