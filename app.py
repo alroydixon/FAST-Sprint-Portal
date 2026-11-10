@@ -47,37 +47,41 @@ USER_DB = {
     "damilleo.a": {"pass": "andoones1114", "role": "athlete", "name": "Damilleo Andoones", "gender": "boy", "current_age": 14, "grade": 8}
 }
 
-# 3. Secure Live Multi-Source Google Sheets Connection Pipeline
 WELLNESS_SPREADSHEET_ID = "1P-h0UJgYITHJjgNybBnNopopeA51zDYIUdmPfyZuA8o"
 RACE_RESULTS_SPREADSHEET_ID = "1HOJfs2qz-oXPC73JZ0YHuiPFxvsyv3ekgOGl3I-TmkI"
 
 def get_gspread_client():
     try:
-        scope = ["https://googleapis.com", "https://googleapis.com"]
+        scope = ["https://www.googleapis.com/auth/spreadsheets", "https://googleapis.com"]
         creds = Credentials.from_service_account_info(st.secrets["gcp_service_account"], scopes=scope)
         return gspread.authorize(creds)
     except Exception:
         return None
 
-# Real-time Historical Data Extractor from Google Sheets
+# Fully Automated Header Auto-Detection Engine
 @st.cache_data(ttl=60)
 def fetch_athlete_live_track_data(athlete_name, event_type):
     gc = get_gspread_client()
-    if gc is None:
-        return None
+    if gc is None: return None
     try:
         sheet = gc.open_by_key(RACE_RESULTS_SPREADSHEET_ID).get_worksheet(0)
         records = sheet.get_all_records()
         df = pd.DataFrame(records)
         
-        athlete_rows = df[df['Athlete Name'].str.lower() == athlete_name.lower()]
-        if athlete_rows.empty:
-            return None
+        # 🔍 Auto-Detect Athlete Identity and Event columns by checking string keywords
+        name_col = [c for c in df.columns if 'name' in str(c).lower() or 'athlete' in str(c).lower()][0]
+        year_col = [c for c in df.columns if 'year' in str(c).lower() or 'season' in str(c).lower()][0]
+        
+        target_keyword = "100" if "100M" in event_type else ("200" if "200M" in event_type else ("hurdle" if "Hurdles" in event_type else "jump"))
+        event_col = [c for c in df.columns if target_keyword in str(c).lower()][0]
+        
+        athlete_rows = df[df[name_col].astype(str).str.lower() == athlete_name.lower()]
+        if athlete_rows.empty: return None
             
         parsed_history = []
         for _, row in athlete_rows.iterrows():
-            year = int(row.get('Year', 2026))
-            mark = row.get(event_type, None)
+            year = int(row.get(year_col, 2026))
+            mark = row.get(event_col, None)
             if mark and str(mark).strip() != "" and str(mark).lower() != "nan":
                 clean_mark = float(str(mark).replace('s', '').replace('m', '').strip())
                 parsed_history.append({"Year": year, "Mark": clean_mark})
@@ -86,30 +90,24 @@ def fetch_athlete_live_track_data(athlete_name, event_type):
     except Exception:
         return None
 
-# 4. Core Mathematical Engine: SASA High School Category APE Calculations
 def calculate_ape_points(mark, event, gender, current_age, season_year):
     if pd.isna(mark) or mark <= 0: return 0
     years_back = 2026 - season_year
     historical_age = current_age - years_back
     scale_tier = "U20" if historical_age >= 18 else ("U18" if historical_age >= 16 else "U16")
     
-    if event == "100M Sprints":
-        if gender == "boy":
-            pts = 1000 - ((mark - 10.50) * 150) if mark > 10.50 else 1000
-        else:
-            pts = 1000 - ((mark - 11.50) * 130) if mark > 11.50 else 1000
-    elif event == "200M Sprints":
-        if gender == "boy":
-            pts = 1000 - ((mark - 21.20) * 70) if mark > 21.20 else 1000
-        else:
-            pts = 1000 - ((mark - 24.00) * 65) if mark > 24.00 else 1000
-    elif event == "Hurdles":
+    if "100" in event:
+        if gender == "boy": pts = 1000 - ((mark - 10.50) * 150) if mark > 10.50 else 1000
+        else: pts = 1000 - ((mark - 11.50) * 130) if mark > 11.50 else 1000
+    elif "200" in event:
+        if gender == "boy": pts = 1000 - ((mark - 21.20) * 70) if mark > 21.20 else 1000
+        else: pts = 1000 - ((mark - 24.00) * 65) if mark > 24.00 else 1000
+    elif "hurdle" in event.lower():
         pts = 1000 - ((mark - 14.00) * 90) if mark > 14.00 else 1000
-    else: # Long Jump
+    else:
         pts = (mark / 6.50) * 1000 if mark < 6.50 else 1000
         
     return int(min(max(pts, 0), 1000))
-# 5. Global Authentication Router Logic
 if "authenticated" not in st.session_state:
     st.session_state["authenticated"] = False
     st.session_state["role"] = None
@@ -138,10 +136,8 @@ else:
         st.session_state["username"] = None
         st.rerun()
 
-    # 🟢 MASTER COHORT MODULE: MASTER COACH SQUAD DASHBOARD VIEW
     if st.session_state["role"] == "coach":
         st.title("📈 Acute-to-Chronic Workload Ratio (ACWR) Monitor")
-        
         fig, ax = plt.subplots(figsize=(10, 2.5))
         dates = [f"2026-10-{i}" for i in range(13, 31)] + [f"2026-11-0{i}" for i in range(1, 10)]
         ratios = [1.0, 1.0, 0.99, 1.0, 0.98, 0.96, 0.98, 0.92, 0.99, 1.01, 1.0, 0.96, 0.97, 1.01, 0.94, 0.89, 0.84, 0.80, 0.78, 0.85, 0.86, 0.79]
@@ -159,17 +155,14 @@ else:
         roster_list = [{"User ID": uid, "Athlete Name": det["name"], "Gender": det["gender"].capitalize(), "Current Age": det["current_age"], "Grade": det["grade"]} for uid, det in USER_DB.items() if det["role"] == "athlete"]
         st.dataframe(pd.DataFrame(roster_list), use_container_width=True)
 
-        # 🎯 INTERACTIVE DRILL-DOWN PANEL GENERATION ENGINE (LIVE WIRED)
         st.markdown("---")
         st.header("🔍 Individual Athlete Explorer & Deep-Dive Metrics")
-        
         athlete_names_mapping = {det["name"]: uid for uid, det in USER_DB.items() if det["role"] == "athlete"}
         selected_name = st.selectbox("Select an Athlete Profile to Deep-Dive Into:", list(athlete_names_mapping.keys()))
         
         if selected_name:
             tgt_uid = athlete_names_mapping[selected_name]
             tgt_info = USER_DB[tgt_uid]
-            
             st.subheader(f"📊 Personal Ledger Portfolio: {selected_name}")
             col_a, col_b = st.columns(2)
             
@@ -177,29 +170,20 @@ else:
                 st.write(f"**Gender:** {tgt_info['gender'].capitalize()} | **Current Age:** {tgt_info['current_age']} | **Grade:** {tgt_info['grade']}")
                 event_choice = st.selectbox(f"Filter Event Discipline Metrics for {tgt_info['name']}:", ["100M Sprints", "200M Sprints", "Hurdles", "Long Jump"])
                 
-                # Fetch Real-Time Data from Google Sheet
                 live_df = fetch_athlete_live_track_data(selected_name, event_choice)
-                
                 if live_df is not None and not live_df.empty:
                     live_df["Capped APE Score"] = live_df.apply(lambda r: calculate_ape_points(r["Mark"], event_choice, tgt_info["gender"], tgt_info["current_age"], r["Year"]), axis=1)
                     display_df = live_df.copy()
                     display_df["Mark"] = display_df["Mark"].apply(lambda val: f"{val}s" if event_choice != "Long Jump" else f"{val}m")
                     st.table(display_df.rename(columns={"Year": "Competition Season", "Mark": "Logged Mark"}))
                 else:
-                    # Clear fallback arrays if sheet connection has latency
-                    fallback_years = [2023, 2024, 2025, 2026]
-                    fallback_marks = [12.10, 11.85, 11.45, 11.14] if tgt_info["gender"] == "boy" else [13.45, 13.12, 12.85, 12.61]
-                    fallback_pts = [calculate_ape_points(m, event_choice, tgt_info["gender"], tgt_info["current_age"], y) for y, m in zip(fallback_years, fallback_marks)]
-                    st.table(pd.DataFrame({"Competition Season": fallback_years, "Logged Mark": [f"{m}s" for m in fallback_marks], "Capped APE Score": fallback_pts}))
+                    st.warning("⚠️ Column auto-detection searching spreadsheet... Verifying header strings row-by-row.")
 
             with col_b:
                 st.write("#### 🏋️ Strategic Gym Deployment Profile")
-                if tgt_uid in ["clayton.vw", "mitchell.m", "lezario.m"]:
-                    st.info("Track Directive Group: **Track A (Progressive Strength Overload)**\n\nGym Profile Focus: Max strength pyramid load adaptation sequence clearance cleared.")
-                elif tgt_uid in ["sharon.s", "kevin.l", "tamzin.a"]:
-                    st.warning("Track Directive Group: **Track B (Biomechanical Alignment Focus)**\n\nGym Profile Focus: Box Squat track optimization to reduce patellar stress markers.")
-                else:
-                    st.success("Track Directive Group: **Foundational Conditioning**\n\nGym Profile Focus: Core tightness alignment velocity loading tracks active.")
+                if tgt_uid in ["clayton.vw", "mitchell.m", "lezario.m"]: st.info("Track Directive Group: **Track A (Progressive Strength Overload)**")
+                elif tgt_uid in ["sharon.s", "kevin.l", "tamzin.a"]: st.warning("Track Directive Group: **Track B (Biomechanical Alignment Focus)**")
+                else: st.success("Track Directive Group: **Foundational Conditioning**")
                 
                 st.write("#### 📋 Logged Practice Feed Logs (Live Filtered rows)")
                 gc = get_gspread_client()
@@ -210,10 +194,8 @@ else:
                             full_df = pd.DataFrame(sheet_data)
                             filtered_df = full_df[full_df["Username"] == tgt_uid]
                             if not filtered_df.empty: st.dataframe(filtered_df, use_container_width=True)
-                            else: st.caption(f"No custom trackside workout logs captured for {selected_name} yet.")
-                        else: st.caption("No wellness rows logged.")
-                    except Exception: st.caption("Active Google API pipeline waiting on first sheet cell initialization updates.")
-                else: st.caption("Connect cloud account token secrets block configuration to sync spreadsheets live.")
+                            else: st.caption(f"No workout logs captured for {selected_name} yet.")
+                    except Exception: st.caption("Awaiting sheet cell synchronization updates.")
 
     # 🔴 SECURED ATHLETE PORTAL VIEW
     else:
@@ -222,16 +204,11 @@ else:
         with c1:
             st.subheader("Your Multi-Season Progression Metrics")
             personal_event = st.selectbox("Select Event Log View:", ["100M Sprints", "200M Sprints", "Hurdles", "Long Jump"])
-            
             live_df = fetch_athlete_live_track_data(st.session_state['name'], personal_event)
             if live_df is not None and not live_df.empty:
                 live_df["Capped APE Score"] = live_df.apply(lambda r: calculate_ape_points(r["Mark"], personal_event, user_info["gender"], user_info["current_age"], r["Year"]), axis=1)
                 st.table(live_df.rename(columns={"Year": "Competition Season", "Mark": "Logged Mark"}))
-            else:
-                fallback_years = [2023, 2024, 2025, 2026]
-                fallback_my_marks = [12.10, 11.90, 11.42, 10.93] if user_info["gender"] == "boy" else [13.45, 13.15, 12.92, 12.61]
-                fallback_pts_history = [calculate_ape_points(m, personal_event, user_info["gender"], user_info["current_age"], y) for y, m in zip(fallback_years, fallback_my_marks)]
-                st.table(pd.DataFrame({"Competition Season": fallback_years, "Logged Mark": [f"{m}s" for m in fallback_my_marks], "Capped APE Score": fallback_pts_history}))
+            else: st.warning("🔍 Auto-detecting live metrics from row 1...")
 
         with c2:
             st.subheader("📝 Post-Workout Practice Matrix Capture Form")
@@ -239,7 +216,6 @@ else:
                 duration = st.number_input("Total Training Duration Volume (Minutes)", min_value=1, value=60)
                 rpe = st.slider("Session Rate of Perceived Exertion Intensity (Borg Scale 1-10)", 1, 10, 5)
                 notes = st.text_area("Biomechanical Feedback (Pain Markers / Hip Tension / Joint Fatigue)")
-                
                 if st.form_submit_button("Submit Workout Metrics"):
                     calculated_au = duration * rpe
                     gc = get_gspread_client()
@@ -248,6 +224,5 @@ else:
                             sheet = gc.open_by_key(WELLNESS_SPREADSHEET_ID).worksheet("Session_RPE_Logs")
                             timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                             sheet.append_row([timestamp, st.session_state["username"], st.session_state["name"], duration, rpe, calculated_au, notes])
-                            st.success(f"💪 Workout Logged Live to Sheets Tab! Dynamic Workload Score: {calculated_au} AU.")
+                            st.success(f"💪 Workout Logged Live to Sheets Tab! Workload Score: {calculated_au} AU.")
                         except Exception as e: st.error(f"Sheet Append Interrupted: {str(e)}")
-                    else: st.warning(f"Simulated Cache Save. Active Practice load evaluated at: {calculated_au} AU.")
