@@ -58,7 +58,7 @@ def get_gspread_client():
     except Exception:
         return None
 
-# Target Tab Ingestion Pipeline Engine
+# Multi-Season Tab Ingestion Pipeline Engine with Adaptive Date-Split Rules
 @st.cache_data(ttl=15)
 def fetch_athlete_live_track_data(athlete_name, event_type):
     gc = get_gspread_client()
@@ -69,17 +69,25 @@ def fetch_athlete_live_track_data(athlete_name, event_type):
         df = pd.DataFrame(records)
         df.columns = [str(c).strip() for c in df.columns]
         
+        # Row-level case-insensitive name filtering
         athlete_rows = df[df['Athlete Name'].astype(str).str.lower().str.strip() == athlete_name.lower().strip()]
         if athlete_rows.empty: return None
             
         parsed_history = []
         for _, row in athlete_rows.iterrows():
-            raw_date = str(row.get('Date', ''))
+            # Robust Date Parsing supporting both Slashes / and Hyphens - formats
+            raw_date = str(row.get('Date', '')).strip()
             try:
-                year = int(raw_date.split('-')[0].strip())
+                if '/' in raw_date:
+                    year = int(raw_date.split('/')[0]) if len(raw_date.split('/')[0]) == 4 else int(raw_date.split('/')[-1].split(' ')[0])
+                elif '-' in raw_date:
+                    year = int(raw_date.split('-')[0]) if len(raw_date.split('-')[0]) == 4 else int(raw_date.split('-')[-1].split(' ')[0])
+                else:
+                    year = 2026
             except Exception:
                 year = 2026
                 
+            # Direct mapping adjustment for your exact sheet vertical headers layout
             if event_type == "100M Sprints":
                 mark = row.get("100M Sprint", None)
             elif event_type == "200M Sprints":
@@ -125,7 +133,6 @@ def calculate_ape_points(mark, event, gender, current_age, season_year):
         pts = (mark / 6.50) * 1000 if mark < 6.50 else 1000
         
     return int(min(max(pts, 0), 1000))
-# 5. Global Authentication Router Logic
 if "authenticated" not in st.session_state:
     st.session_state["authenticated"] = False
     st.session_state["role"] = None
@@ -154,10 +161,8 @@ else:
         st.session_state["username"] = None
         st.rerun()
 
-    # 🟢 MASTER COHORT MODULE: MASTER COACH SQUAD DASHBOARD VIEW
     if st.session_state["role"] == "coach":
         st.title("📈 Acute-to-Chronic Workload Ratio (ACWR) Monitor")
-        
         fig, ax = plt.subplots(figsize=(10, 2.2))
         dates = [f"2026-10-{i}" for i in range(13, 31)] + [f"2026-11-0{i}" for i in range(1, 10)]
         ratios = [1.0, 1.0, 0.99, 1.0, 0.98, 0.96, 0.98, 0.92, 0.99, 1.01, 1.0, 0.96, 0.97, 1.01, 0.94, 0.89, 0.84, 0.80, 0.78, 0.85, 0.86, 0.79]
@@ -175,10 +180,8 @@ else:
         roster_list = [{"User ID": uid, "Athlete Name": det["name"], "Gender": det["gender"].capitalize(), "Current Age": det["current_age"], "Grade": det["grade"]} for uid, det in USER_DB.items() if det["role"] == "athlete"]
         st.dataframe(pd.DataFrame(roster_list), use_container_width=True)
 
-        # 🎯 INTERACTIVE DRILL-DOWN PANEL GENERATION ENGINE (LIVE WIRED)
         st.markdown("---")
         st.header("🔍 Individual Athlete Explorer & Deep-Dive Metrics")
-        
         athlete_names_mapping = {det["name"]: uid for uid, det in USER_DB.items() if det["role"] == "athlete"}
         selected_name = st.selectbox("Select an Athlete Profile to Deep-Dive Into:", sorted(list(athlete_names_mapping.keys())))
         
@@ -192,9 +195,7 @@ else:
                 st.write(f"**Gender:** {tgt_info['gender'].capitalize()} | **Current Age:** {tgt_info['current_age']} | **Grade:** {tgt_info['grade']}")
                 event_choice = st.selectbox(f"Filter Event Discipline Metrics for {tgt_info['name']}:", ["100M Sprints", "200M Sprints", "400M Sprints", "Long Jump"])
                 
-                # Fetch Real-Time Data from Google Sheet
                 live_df = fetch_athlete_live_track_data(selected_name, event_choice)
-                
                 if live_df is not None and not live_df.empty:
                     live_df["Capped APE Score"] = live_df.apply(lambda r: calculate_ape_points(r["Mark"], event_choice, tgt_info["gender"], tgt_info["current_age"], r["Year"]), axis=1)
                     display_df = live_df.copy()
@@ -202,20 +203,20 @@ else:
                     st.table(display_df.rename(columns={"Year": "Competition Season", "Mark": "Logged Season Best"}))
                     
                     fig2, ax2 = plt.subplots(figsize=(6, 2.5))
-                    ax2.plot(live_df["Year"].astype(str), live_df["Capped APE Score"], marker="s", color="#1f77b4", linewidth=2, label="APE Points")
+                    ax2.plot(live_df["Year"].astype(str), live_df["Capped APE Score"], marker="s", color="#1f77b4", linewidth=2)
                     ax2.axhline(1000, color="red", linestyle="--", alpha=0.5)
                     ax2.set_ylabel("APE Points Scale")
                     ax2.set_ylim(400, 1050)
                     ax2.grid(True, linestyle=":", alpha=0.6)
                     st.pyplot(fig2)
                 else:
-                    st.warning(f"📅 No rows found inside 'Form Responses 1' for {selected_name} under event: {event_choice}.")
+                    st.info(f"📅 Awaiting first live 2026 track entry log for {selected_name} inside {event_choice}.")
 
             with col_b:
                 st.write("#### 🏋️ Strategic Gym Deployment Profile")
-                if tgt_uid in ["clayton.vw", "mitchell.m", "lezario.m", "ashrin.f"]: st.info("Track Directive Group: **Track A (Progressive Strength Overload)**\n\nGym Profile Focus: Max strength pyramid load adaptation sequence clearance cleared.")
-                elif tgt_uid in ["sharon.s", "kevin.l", "tamzin.a"]: st.warning("Track Directive Group: **Track B (Biomechanical Alignment Focus)**\n\nGym Profile Focus: Box Squat track optimization to reduce patellar stress markers.")
-                else: st.success("Track Directive Group: **Foundational Conditioning**\n\nGym Profile Focus: Core tightness alignment velocity loading tracks active.")
+                if tgt_uid in ["clayton.vw", "mitchell.m", "lezario.m", "ashrin.f"]: st.info("Track Directive Group: **Track A (Progressive Strength Overload)**")
+                elif tgt_uid in ["sharon.s", "kevin.l", "tamzin.a"]: st.warning("Track Directive Group: **Track B (Biomechanical Alignment Focus)**")
+                else: st.success("Track Directive Group: **Foundational Conditioning**")
                 
                 st.write("#### 📋 Logged Practice Feed Logs (Live Filtered rows)")
                 gc = get_gspread_client()
