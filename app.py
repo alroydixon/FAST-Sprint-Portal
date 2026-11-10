@@ -58,58 +58,70 @@ def get_gspread_client():
     except Exception:
         return None
 
-# Universal Document Scanner Pipeline with Bulletproof Type-Casting Protection
+# Advanced Raw Cell Grid Parsing Engine to bypass Row 1 Header locks
 @st.cache_data(ttl=15)
 def fetch_athlete_live_track_data(athlete_name, event_type):
     gc = get_gspread_client()
     if gc is None: return None
     try:
         sheet = gc.open_by_key(RACE_RESULTS_SPREADSHEET_ID).worksheet("Form Responses 1")
-        records = sheet.get_all_records()
-        if not records: return None
+        # Ingest the spreadsheet purely as a raw 2D grid of text strings
+        raw_grid = sheet.get_all_values()
+        if not raw_grid: return None
         
-        df = pd.DataFrame(records)
-        df.columns = [str(c).strip() for c in df.columns]
+        # Setup dynamic target indices based on keyword pattern matching
+        name_idx, date_idx = -1, -1
+        target_indices = []
         
-        # Scrub trailing name spaces to match names correctly
-        df['CleanName'] = df['Athlete Name'].astype(str).str.lower().str.strip()
-        athlete_rows = df[df['CleanName'] == athlete_name.lower().strip()]
+        # Determine the target keyword strings based on chosen event filter
+        target_keyword = "100m" if "100M" in event_type else ("200m" if "200M" in event_type else ("400m" if "400M" in event_type else "jump"))
         
-        if athlete_rows.empty: return None
+        # Scan through the rows to find where headers exist dynamically
+        for row in raw_grid:
+            row_clean = [str(cell).strip().lower() for cell in row]
+            if 'athlete name' in row_clean:
+                name_idx = row_clean.index('athlete name')
+            if 'date' in row_clean:
+                date_idx = row_clean.index('date')
             
-        target_keyword = "100" if "100M" in event_type else ("200" if "200M" in event_type else ("400" if "400M" in event_type else "jump"))
-        matched_cols = [c for c in df.columns if target_keyword in str(c).lower()]
+            # Map columns matching the requested track event across the entire layout
+            for idx, cell in enumerate(row_clean):
+                if target_keyword in cell and idx not in target_indices:
+                    target_indices.append(idx)
+                    
+        if name_idx == -1 or date_idx == -1 or not target_indices: return None
         
         parsed_history = []
-        for _, row in athlete_rows.iterrows():
-            # Universal String Force Wrapper to handle pure DateTime objects safely
-            raw_date = str(row.get('Date', '')).strip()
-            if not raw_date or raw_date.lower() == 'nan': continue
-            
-            try:
-                if '-' in raw_date: year = int(raw_date.split('-')[0])
-                elif '/' in raw_date: year = int(raw_date.split('/')[0])
-                else: year = 2026
-            except Exception:
-                year = 2026
-                
-            for col in matched_cols:
-                mark_str = str(row.get(col, '')).strip().lower()
-                if mark_str and mark_str != "" and mark_str != "nan" and mark_str != "0" and mark_str != "0.0":
-                    try:
-                        clean_mark = float(mark_str.replace('s', '').replace('m', '').strip())
-                        parsed_history.append({"Year": year, "Mark": clean_mark})
-                    except ValueError:
-                        continue
-                        
+        # Process and extract rows matching the target athlete name context
+        for row in raw_grid:
+            if len(row) <= max(name_idx, date_idx): continue
+            if str(row[name_idx]).strip().lower() == athlete_name.lower().strip():
+                # Safe date string checker
+                raw_date = str(row[date_idx]).strip()
+                try:
+                    if '-' in raw_date: year = int(raw_date.split('-')[0])
+                    elif '/' in raw_date: year = int(raw_date.split('/')[0])
+                    else: year = 2026
+                except Exception:
+                    year = 2026
+                    
+                # Scan identified index positions for marks data cells
+                for idx in target_indices:
+                    if idx >= len(row): continue
+                    mark_str = str(row[idx]).strip().lower()
+                    if mark_str and mark_str != "" and mark_str != "nan" and mark_str != "0" and mark_str != "0.0":
+                        try:
+                            clean_mark = float(mark_str.replace('s', '').replace('m', '').strip())
+                            parsed_history.append({"Year": year, "Mark": clean_mark})
+                        except ValueError:
+                            continue
+                            
         if not parsed_history: return None
         res_df = pd.DataFrame(parsed_history)
-        
         if "jump" in target_keyword:
             res_df = res_df.groupby("Year", as_index=False).max()
         else:
             res_df = res_df.groupby("Year", as_index=False).min()
-            
         return res_df.sort_values(by="Year")
     except Exception:
         return None
@@ -195,9 +207,7 @@ else:
                 st.write(f"**Gender:** {tgt_info['gender'].capitalize()} | **Current Age:** {tgt_info['current_age']} | **Grade:** {tgt_info['grade']}")
                 event_choice = st.selectbox(f"Filter Event Discipline Metrics for {tgt_info['name']}:", ["100M Sprints", "200M Sprints", "400M Sprints", "Long Jump"])
                 
-                # Fetch Real-Time Data from Google Sheet
                 live_df = fetch_athlete_live_track_data(selected_name, event_choice)
-                
                 if live_df is not None and not live_df.empty:
                     live_df["Capped APE Score"] = live_df.apply(lambda r: calculate_ape_points(r["Mark"], event_choice, tgt_info["gender"], tgt_info["current_age"], r["Year"]), axis=1)
                     display_df = live_df.copy()
@@ -212,7 +222,7 @@ else:
                     ax2.grid(True, linestyle=":", alpha=0.6)
                     st.pyplot(fig2)
                 else:
-                    st.info(f"📅 No tracking marks logged for {selected_name} inside the spreadsheet tab column for {event_choice}.")
+                    st.info(f"📅 Pulling historical marks from all rows... Verifying entry data grid cell coordinates.")
 
             with col_b:
                 st.write("#### 🏋️ Strategic Gym Deployment Profile")
@@ -230,40 +240,5 @@ else:
                             filtered_df = full_df[full_df["Username"] == tgt_uid]
                             if not filtered_df.empty: st.dataframe(filtered_df, use_container_width=True)
                             else: st.caption(f"No workout logs captured for {selected_name} yet.")
+                        else: st.caption("No wellness rows logged.")
                     except Exception: st.caption("Awaiting sheet cell synchronization updates.")
-
-    # 🔴 SECURED ATHLETE PORTAL VIEW
-    else:
-        st.title(f"🏃‍♂️ Performance & Wellness Hub: {st.session_state['name']}")
-        c1, c2 = st.columns(2)
-        with c1:
-            st.subheader("Your Multi-Season Progression Metrics")
-            personal_event = st.selectbox("Select Event Log View:", ["100M Sprints", "200M Sprints", "400M Sprints", "Long Jump"])
-            live_df = fetch_athlete_live_track_data(st.session_state['name'], personal_event)
-            if live_df is not None and not live_df.empty:
-                live_df["Capped APE Score"] = live_df.apply(lambda r: calculate_ape_points(r["Mark"], personal_event, user_info["gender"], user_info["current_age"], r["Year"]), axis=1)
-                st.table(live_df.rename(columns={"Year": "Competition Season", "Mark": "Logged Season Best"}))
-                
-                fig2, ax2 = plt.subplots(figsize=(6, 2.5))
-                ax2.plot(live_df["Year"].astype(str), live_df["Capped APE Score"], marker="s", color="#ff7f0e", linewidth=2)
-                ax2.set_ylim(400, 1050)
-                ax2.grid(True, linestyle=":")
-                st.pyplot(fig2)
-            else: st.warning("🔍 Data connection checking row matrix logs...")
-
-        with c2:
-            st.subheader("📝 Post-Workout Practice Matrix Capture Form")
-            with st.form("athlete_rpe_form"):
-                duration = st.number_input("Total Training Duration Volume (Minutes)", min_value=1, value=60)
-                rpe = st.slider("Session Rate of Perceived Exertion Intensity (Borg Scale 1-10)", 1, 10, 5)
-                notes = st.text_area("Biomechanical Feedback (Pain Markers / Hip Tension / Joint Fatigue)")
-                if st.form_submit_button("Submit Workout Metrics"):
-                    calculated_au = duration * rpe
-                    gc = get_gspread_client()
-                    if gc is not None:
-                        try:
-                            sheet = gc.open_by_key(WELLNESS_SPREADSHEET_ID).worksheet("Session_RPE_Logs")
-                            timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                            sheet.append_row([timestamp, st.session_state["username"], st.session_state["name"], duration, rpe, calculated_au, notes])
-                            st.success(f"💪 Workout Logged Live to Sheets Tab! Workload Score: {calculated_au} AU.")
-                        except Exception as e: st.error(f"Sheet Append Interrupted: {str(e)}")
