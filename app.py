@@ -58,73 +58,6 @@ def get_gspread_client():
     except Exception:
         return None
 
-# Cleaned Fixed Target Column Ingestion Engine matching document rows
-@st.cache_data(ttl=15)
-def fetch_athlete_live_track_data(athlete_name, event_type):
-    gc = get_gspread_client()
-    if gc is None: return None
-    try:
-        sheet = gc.open_by_key(RACE_RESULTS_SPREADSHEET_ID).worksheet("Form Responses 1")
-        # Read everything safely as continuous raw grid string text arrays
-        raw_grid = sheet.get_all_values()
-        if not raw_grid: return None
-        
-        headers = [str(h).strip() for h in raw_grid[0]]
-        rows = raw_grid[1:]
-        df = pd.DataFrame(rows, columns=headers)
-        
-        # Scrub trailing whitespace characters from name arrays
-        df['CleanName'] = df['Athlete Name'].astype(str).str.lower().str.strip()
-        clean_search_name = athlete_name.lower().strip()
-        
-        # Cross-reference row segments using loose membership checks
-        athlete_rows = df[(df['CleanName'] == clean_search_name) | (df['CleanName'].str.contains(clean_search_name))]
-        if athlete_rows.empty: return None
-            
-        parsed_history = []
-        for _, row in athlete_rows.iterrows():
-            raw_date = str(row.get('Date', '')).strip()
-            if not raw_date or raw_date.lower() == 'nan': continue
-            
-            try:
-                # Dynamic calendar year extractor
-                if '-' in raw_date: year = int(raw_date.split('-')[0])
-                elif '/' in raw_date: year = int(raw_date.split('/')[0])
-                else: year = 2026
-            except Exception:
-                year = 2026
-                
-            # Explicitly match your spreadsheet's unique vertical column header labels
-            if event_type == "100M Sprints": target_cols = ["100M Sprint", "PB 100M 2023"]
-            elif event_type == "200M Sprints": target_cols = ["200M Sprint", "PB 200M 2023"]
-            elif event_type == "400M Sprints": target_cols = ["400M Sprint", "PB 400M 2023"]
-            else: target_cols = ["LONG JUMP", "PB LONG JUMP 2023"]
-                
-            # Loop column profiles sequentially until data cell hits
-            mark_str = ""
-            for col in target_cols:
-                val = str(row.get(col, '')).strip().lower()
-                if val and val != "" and val != "nan" and val != "0" and val != "0.0":
-                    mark_str = val
-                    break
-                    
-            if mark_str:
-                try:
-                    clean_mark = float(mark_str.replace('s', '').replace('m', '').strip())
-                    parsed_history.append({"Year": year, "Mark": clean_mark})
-                except ValueError:
-                    continue
-                    
-        if not parsed_history: return None
-        res_df = pd.DataFrame(parsed_history)
-        if event_type == "Long Jump":
-            res_df = res_df.groupby("Year", as_index=False).max()
-        else:
-            res_df = res_df.groupby("Year", as_index=False).min()
-        return res_df.sort_values(by="Year")
-    except Exception:
-        return None
-
 def calculate_ape_points(mark, event, gender, current_age, season_year):
     if pd.isna(mark) or mark <= 0: return 0
     years_back = 2026 - season_year
@@ -185,7 +118,6 @@ else:
         ax.legend(loc="upper left")
         plt.xticks(rotation=15)
         st.pyplot(fig)
-        st.success("✅ Baseline Balanced: Current squad workload acceleration index is safe at 0.79.")
 
         st.subheader("S-ACE Track Program Roster")
         roster_list = [{"User ID": uid, "Athlete Name": det["name"], "Gender": det["gender"].capitalize(), "Current Age": det["current_age"], "Grade": det["grade"]} for uid, det in USER_DB.items() if det["role"] == "athlete"]
@@ -200,44 +132,32 @@ else:
             tgt_uid = athlete_names_mapping[selected_name]
             tgt_info = USER_DB[tgt_uid]
             st.subheader(f"📊 Personal Ledger Portfolio: {selected_name}")
-            col_a, col_b = st.columns(2)
             
-            with col_a:
-                st.write(f"**Gender:** {tgt_info['gender'].capitalize()} | **Current Age:** {tgt_info['current_age']} | **Grade:** {tgt_info['grade']}")
-                event_choice = st.selectbox(f"Filter Event Discipline Metrics for {tgt_info['name']}:", ["100M Sprints", "200M Sprints", "400M Sprints", "Long Jump"])
-                
-                live_df = fetch_athlete_live_track_data(selected_name, event_choice)
-                if live_df is not None and not live_df.empty:
-                    live_df["Capped APE Score"] = live_df.apply(lambda r: calculate_ape_points(r["Mark"], event_choice, tgt_info["gender"], tgt_info["current_age"], r["Year"]), axis=1)
-                    display_df = live_df.copy()
-                    display_df["Mark"] = display_df["Mark"].apply(lambda val: f"{val}s" if event_choice != "Long Jump" else f"{val}m")
-                    st.table(display_df.rename(columns={"Year": "Competition Season", "Mark": "Logged Season Best"}))
+            # 🛠️ LIVE BACKEND DEBUG DIAGNOSTIC STREAM 
+            st.write("### 🎛️ Live Google API Connection Diagnostics")
+            gc = get_gspread_client()
+            if gc is not None:
+                try:
+                    sheet = gc.open_by_key(RACE_RESULTS_SPREADSHEET_ID).worksheet("Form Responses 1")
+                    raw_grid = sheet.get_all_values()
                     
-                    fig2, ax2 = plt.subplots(figsize=(6, 2.5))
-                    ax2.plot(live_df["Year"].astype(str), live_df["Capped APE Score"], marker="s", color="#1f77b4", linewidth=2)
-                    ax2.axhline(1000, color="red", linestyle="--", alpha=0.5)
-                    ax2.set_ylabel("APE Points Scale")
-                    ax2.set_ylim(400, 1050)
-                    ax2.grid(True, linestyle=":", alpha=0.6)
-                    st.pyplot(fig2)
-                else:
-                    st.info(f"📅 No tracking marks logged for {selected_name} inside the spreadsheet tab column for {event_choice}.")
-
-            with col_b:
-                st.write("#### 🏋️ Strategic Gym Deployment Profile")
-                if tgt_uid in ["clayton.vw", "mitchell.m", "lezario.m", "ashrin.f"]: st.info("Track Directive Group: **Track A (Progressive Strength Overload)**")
-                elif tgt_uid in ["sharon.s", "kevin.l", "tamzin.a"]: st.warning("Track Directive Group: **Track B (Biomechanical Alignment Focus)**")
-                else: st.success("Track Directive Group: **Foundational Conditioning**")
-                
-                st.write("#### 📋 Logged Practice Feed Logs (Live Filtered rows)")
-                gc = get_gspread_client()
-                if gc is not None:
-                    try:
-                        sheet_data = gc.open_by_key(WELLNESS_SPREADSHEET_ID).worksheet("Session_RPE_Logs").get_all_records()
-                        if sheet_data:
-                            full_df = pd.DataFrame(sheet_data)
-                            filtered_df = full_df[full_df["Username"] == tgt_uid]
-                            if not filtered_df.empty: st.dataframe(filtered_df, use_container_width=True)
-                            else: st.caption(f"No workout logs captured for {selected_name} yet.")
-                        else: st.caption("No wellness rows logged.")
-                    except Exception: st.caption("Awaiting sheet cell synchronization updates.")
+                    st.info(f"📁 **Total Rows Found in Sheet Tab:** {len(raw_grid)}")
+                    if len(raw_grid) > 0:
+                        st.write(f"🏷️ **Raw Column Headers Discovered (Row 1):** `{raw_grid[0]}`")
+                        
+                        # Find indices
+                        headers_lower = [str(h).strip().lower() for h in raw_grid[0]]
+                        name_idx = headers_lower.index('athlete name') if 'athlete name' in headers_lower else -1
+                        date_idx = headers_lower.index('date') if 'date' in headers_lower else -1
+                        
+                        st.write(f"📍 **Index Placement Coordinates:** `Athlete Name Column: {name_idx}` | `Date Column: {date_idx}`")
+                        
+                        # Look for matches
+                        matches = [r for r in raw_grid[1:] if len(r) > name_idx and str(r[name_idx]).strip().lower() == selected_name.lower().strip()]
+                        st.warning(f"🎯 **Filtered Athlete Rows Extracted for {selected_name}:** {len(matches)}")
+                        if len(matches) > 0:
+                            st.write(f"📝 **Sample Captured Row:** `{matches[0]}`")
+                except Exception as e:
+                    st.error(f"❌ Diagnostic Pipeline Interrupted: {str(e)}")
+            else:
+                st.error("❌ Google Service Account authentication key missing in Secrets Panel.")
