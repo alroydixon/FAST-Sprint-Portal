@@ -58,18 +58,22 @@ def get_gspread_client():
     except Exception:
         return None
 
-# Cleaned, Multi-Format Robust Data Extractor
+# Cleaned, Type-Safe Data Ingestion Extractor
 @st.cache_data(ttl=15)
 def fetch_athlete_live_track_data(athlete_name, event_type):
     gc = get_gspread_client()
     if gc is None: return None
     try:
         sheet = gc.open_by_key(RACE_RESULTS_SPREADSHEET_ID).worksheet("Form Responses 1")
-        records = sheet.get_all_records()
-        df = pd.DataFrame(records)
-        df.columns = [str(c).strip() for c in df.columns]
+        # Ingest as pure strings to prevent conversion blocks on missing/blank cells
+        records = sheet.get_all_values()
+        if not records: return None
         
-        # Scrub spacing markers from athlete names to fix matching issues
+        headers = [str(h).strip() for h in records[0]]
+        rows = records[1:]
+        df = pd.DataFrame(rows, columns=headers)
+        
+        # Normalize and filter on cleansed athlete name row blocks
         df['CleanName'] = df['Athlete Name'].astype(str).str.lower().str.strip()
         athlete_rows = df[df['CleanName'] == athlete_name.lower().strip()]
         
@@ -77,25 +81,28 @@ def fetch_athlete_live_track_data(athlete_name, event_type):
             
         parsed_history = []
         for _, row in athlete_rows.iterrows():
-            # Robust extraction of the year using pandas dynamic timestamp conversion
+            raw_date = str(row.get('Date', '')).strip()
+            if not raw_date: continue
+            
+            # Robust extraction of the year using custom pattern matching splits
             try:
-                year = pd.to_datetime(row['Date']).year
+                if '-' in raw_date: year = int(raw_date.split('-')[0])
+                elif '/' in raw_date: year = int(raw_date.split('/')[0])
+                else: year = 2026
             except Exception:
                 year = 2026
                 
-            # Direct mapping adjustment for your exact sheet vertical headers layout
-            if event_type == "100M Sprints":
-                mark = row.get("100M Sprint", None)
-            elif event_type == "200M Sprints":
-                mark = row.get("200M Sprint", None)
-            elif event_type == "400M Sprints":
-                mark = row.get("400M Sprint", None)
-            else:
-                mark = row.get("LONG JUMP", None)
+            # Column label mapping variants selector
+            if event_type == "100M Sprints": target_col = "100M Sprint"
+            elif event_type == "200M Sprints": target_col = "200M Sprint"
+            elif event_type == "400M Sprints": target_col = "400M Sprint"
+            else: target_col = "LONG JUMP"
                 
-            if mark and str(mark).strip() != "" and str(mark).lower() != "nan" and str(mark).strip() != "0":
+            mark_str = str(row.get(target_col, '')).strip().lower()
+            if mark_str and mark_str != "" and mark_str != "nan" and mark_str != "0":
                 try:
-                    clean_mark = float(str(mark).lower().replace('s', '').replace('m', '').strip())
+                    # Isolate digits, stripping text character strings safely
+                    clean_mark = float(mark_str.replace('s', '').replace('m', '').strip())
                     parsed_history.append({"Year": year, "Mark": clean_mark})
                 except ValueError:
                     continue
@@ -191,7 +198,9 @@ else:
                 st.write(f"**Gender:** {tgt_info['gender'].capitalize()} | **Current Age:** {tgt_info['current_age']} | **Grade:** {tgt_info['grade']}")
                 event_choice = st.selectbox(f"Filter Event Discipline Metrics for {tgt_info['name']}:", ["100M Sprints", "200M Sprints", "400M Sprints", "Long Jump"])
                 
+                # Fetch Real-Time Data from Google Sheet
                 live_df = fetch_athlete_live_track_data(selected_name, event_choice)
+                
                 if live_df is not None and not live_df.empty:
                     live_df["Capped APE Score"] = live_df.apply(lambda r: calculate_ape_points(r["Mark"], event_choice, tgt_info["gender"], tgt_info["current_age"], r["Year"]), axis=1)
                     display_df = live_df.copy()
@@ -206,7 +215,7 @@ else:
                     ax2.grid(True, linestyle=":", alpha=0.6)
                     st.pyplot(fig2)
                 else:
-                    st.info(f"📅 Pulling cell data... If values are missing, verify entry records in 'Form Responses 1'.")
+                    st.info(f"📅 No tracking marks logged for {selected_name} inside the spreadsheet tab column for {event_choice}.")
 
             with col_b:
                 st.write("#### 🏋️ Strategic Gym Deployment Profile")
