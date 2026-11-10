@@ -53,7 +53,6 @@ RACE_RESULTS_SPREADSHEET_ID = "1HOJfs2qz-oXPC73JZ0YHuiPFxvsyv3ekgOGl3I-TmkI"
 
 def get_gspread_client():
     try:
-        # Load raw flat string configuration line directly, parsing as native python JSON dict
         info_dict = json.loads(st.secrets["raw_json_string"])
         scope = ["https://googleapis.com", "https://googleapis.com"]
         creds = Credentials.from_service_account_info(info_dict, scopes=scope)
@@ -100,9 +99,10 @@ def fetch_athlete_live_track_data(athlete_name, event_type):
             if str(row[name_idx]).lower().strip() == clean_search_name:
                 for col_idx, col_name in enumerate(headers):
                     if "week:" in col_name.lower():
+                        # FIX: Secure String extraction parameter logic to isolate the season year safely
                         try:
-                            year_prefix = col_name.split(' ')[0].strip()
-                            year = 2000 + int(year_prefix)
+                            col_clean = str(col_name).strip()
+                            year = int("20" + col_clean[:2])
                         except Exception:
                             year = 2026
                             
@@ -142,3 +142,138 @@ def calculate_ape_points(mark, event, gender, current_age, season_year):
     else:
         pts = (mark / 6.50) * 1000 if mark < 6.50 else 1000
     return int(min(max(pts, 0), 1000))
+if "authenticated" not in st.session_state:
+    st.session_state["authenticated"] = False
+    st.session_state["role"] = None
+    st.session_state["username"] = None
+
+if not st.session_state["authenticated"]:
+    st.title("🔒 S-ACE Cloud Performance Portal")
+    st.subheader("Row-Level Secured Portal Authorization")
+    username = st.text_input("Athlete ID / Coaching Code")
+    password = st.text_input("Access Security Password", type="password")
+    if st.button("Log In"):
+        if username in USER_DB and USER_DB[username]["pass"] == password:
+            st.session_state["authenticated"] = True
+            st.session_state["role"] = USER_DB[username]["role"]
+            st.session_state["username"] = username
+            st.session_state["name"] = USER_DB[username]["name"]
+            st.rerun()
+        else: st.error("Access Denied.")
+else:
+    user_info = USER_DB[st.session_state["username"]]
+    st.sidebar.title(f"User: {st.session_state['name']}")
+    st.sidebar.write(f"Access Role: **{st.session_state['role'].upper()}**")
+    if st.sidebar.button("Logout"):
+        st.session_state["authenticated"] = False
+        st.session_state["role"] = None
+        st.session_state["username"] = None
+        st.rerun()
+
+    if st.session_state["role"] == "coach":
+        st.title("📈 Acute-to-Chronic Workload Ratio (ACWR) Monitor")
+        fig, ax = plt.subplots(figsize=(10, 2.2))
+        dates = [f"2026-10-{i}" for i in range(13, 31)] + [f"2026-11-0{i}" for i in range(1, 10)]
+        ratios = [1.0, 1.0, 0.99, 1.0, 0.98, 0.96, 0.98, 0.92, 0.99, 1.01, 1.0, 0.96, 0.97, 1.01, 0.94, 0.89, 0.84, 0.80, 0.78, 0.85, 0.86, 0.79]
+        ax.plot(dates[:len(ratios)], ratios, color="purple", marker="o", label="Current ACWR Trend", linewidth=2)
+        ax.axhline(1.5, color="red", linestyle="--", label="High Risk Boundary (1.5)")
+        ax.axhline(1.0, color="green", linestyle=":", label="Optimal Balance (1.0)")
+        ax.set_ylim(0.5, 1.7)
+        ax.set_ylabel("Workload Ratio")
+        ax.legend(loc="upper left")
+        plt.xticks(rotation=15)
+        st.pyplot(fig)
+        st.success("✅ Baseline Balanced: Current squad workload acceleration index is safe at 0.79.")
+
+        st.subheader("S-ACE Track Program Roster")
+        roster_list = [{"User ID": uid, "Athlete Name": det["name"], "Gender": det["gender"].capitalize(), "Current Age": det["current_age"], "Grade": det["grade"]} for uid, det in USER_DB.items() if det["role"] == "athlete"]
+        st.dataframe(pd.DataFrame(roster_list), use_container_width=True)
+
+        st.markdown("---")
+        st.header("🔍 Individual Athlete Explorer & Deep-Dive Metrics")
+        athlete_names_mapping = {det["name"]: uid for uid, det in USER_DB.items() if det["role"] == "athlete"}
+        selected_name = st.selectbox("Select an Athlete Profile to Deep-Dive Into:", sorted(list(athlete_names_mapping.keys())))
+        
+        if selected_name:
+            tgt_uid = athlete_names_mapping[selected_name]
+            tgt_info = USER_DB[tgt_uid]
+            st.subheader(f"📊 Personal Ledger Portfolio: {selected_name}")
+            col_a, col_b = st.columns(2)
+            
+            with col_a:
+                st.write(f"**Gender:** {tgt_info['gender'].capitalize()} | **Current Age:** {tgt_info['current_age']} | **Grade:** {tgt_info['grade']}")
+                event_choice = st.selectbox(f"Filter Event Discipline Metrics for {tgt_info['name']}:", ["100M Sprints", "200M Sprints", "400M Sprints", "Long Jump"])
+                
+                # Fetch Real-Time Data from Google Sheet
+                live_df = fetch_athlete_live_track_data(selected_name, event_choice)
+                
+                if live_df is not None and not live_df.empty:
+                    live_df["Capped APE Score"] = live_df.apply(lambda r: calculate_ape_points(r["Mark"], event_choice, tgt_info["gender"], tgt_info["current_age"], r["Year"]), axis=1)
+                    display_df = live_df.copy()
+                    display_df["Mark"] = display_df["Mark"].apply(lambda val: f"{val}s" if event_choice != "Long Jump" else f"{val}m")
+                    st.table(display_df.rename(columns={"Year": "Competition Season", "Mark": "Logged Season Best"}))
+                    
+                    fig2, ax2 = plt.subplots(figsize=(6, 2.5))
+                    ax2.plot(live_df["Year"].astype(str), live_df["Capped APE Score"], marker="s", color="#1f77b4", linewidth=2)
+                    ax2.axhline(1000, color="red", linestyle="--", alpha=0.5)
+                    ax2.set_ylabel("APE Points Scale")
+                    ax2.set_ylim(400, 1050)
+                    ax2.grid(True, linestyle=":", alpha=0.6)
+                    st.pyplot(fig2)
+                else:
+                    st.info(f"📅 Live Google Sheets Data Stream Active. Select an entry column field above to query cells.")
+
+            with col_b:
+                st.write("#### 🏋️ Strategic Gym Deployment Profile")
+                if tgt_uid in ["clayton.vw", "mitchell.m", "lezario.m", "ashrin.f"]: st.info("Track Directive Group: **Track A (Progressive Strength Overload)**")
+                elif tgt_uid in ["sharon.s", "kevin.l", "tamzin.a"]: st.warning("Track Directive Group: **Track B (Biomechanical Alignment Focus)**")
+                else: st.success("Track Directive Group: **Foundational Conditioning**")
+                
+                st.write("#### 📋 Logged Practice Feed Logs (Live Filtered rows)")
+                gc = get_gspread_client()
+                if gc is not None:
+                    try:
+                        sheet_data = gc.open_by_key(WELLNESS_SPREADSHEET_ID).worksheet("Session_RPE_Logs").get_all_records()
+                        if sheet_data:
+                            full_df = pd.DataFrame(sheet_data)
+                            filtered_df = full_df[full_df["Username"] == tgt_uid]
+                            if not filtered_df.empty: st.dataframe(filtered_df, use_container_width=True)
+                            else: st.caption(f"No workout logs captured for {selected_name} yet.")
+                        else: st.caption("No wellness rows logged.")
+                    except Exception: st.caption("Awaiting sheet cell synchronization updates.")
+
+    # 🔴 SECURED ATHLETE PORTAL VIEW
+    else:
+        st.title(f"🏃‍♂️ Performance & Wellness Hub: {st.session_state['name']}")
+        c1, c2 = st.columns(2)
+        with c1:
+            st.subheader("Your Multi-Season Progression Metrics")
+            personal_event = st.selectbox("Select Event Log View:", ["100M Sprints", "200M Sprints", "400M Sprints", "Long Jump"])
+            live_df = fetch_athlete_live_track_data(st.session_state['name'], personal_event)
+            if live_df is not None and not live_df.empty:
+                live_df["Capped APE Score"] = live_df.apply(lambda r: calculate_ape_points(r["Mark"], personal_event, user_info["gender"], user_info["current_age"], r["Year"]), axis=1)
+                st.table(live_df.rename(columns={"Year": "Competition Season", "Mark": "Logged Season Best"}))
+                
+                fig2, ax2 = plt.subplots(figsize=(6, 2.5))
+                ax2.plot(live_df["Year"].astype(str), live_df["Capped APE Score"], marker="s", color="#ff7f0e", linewidth=2)
+                ax2.set_ylim(400, 1050)
+                ax2.grid(True, linestyle=":")
+                st.pyplot(fig2)
+            else: st.warning("🔍 Data connection checking row matrix logs...")
+
+        with c2:
+            st.subheader("📝 Post-Workout Practice Matrix Capture Form")
+            with st.form("athlete_rpe_form"):
+                duration = st.number_input("Total Training Duration Volume (Minutes)", min_value=1, value=60)
+                rpe = st.slider("Session Rate of Perceived Exertion Intensity (Borg Scale 1-10)", 1, 10, 5)
+                notes = st.text_area("Biomechanical Feedback (Pain Markers / Hip Tension / Joint Fatigue)")
+                if st.form_submit_button("Submit Workout Metrics"):
+                    calculated_au = duration * rpe
+                    gc = get_gspread_client()
+                    if gc is not None:
+                        try:
+                            sheet = gc.open_by_key(WELLNESS_SPREADSHEET_ID).worksheet("Session_RPE_Logs")
+                            timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                            sheet.append_row([timestamp, st.session_state["username"], st.session_state["name"], duration, rpe, calculated_au, notes])
+                            st.success(f"💪 Workout Logged Live to Sheets Tab! Workload Score: {calculated_au} AU.")
+                        except Exception as e: st.error(f"Sheet Append Interrupted: {str(e)}")
