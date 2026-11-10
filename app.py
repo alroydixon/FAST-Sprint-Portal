@@ -11,9 +11,9 @@ st.set_page_config(page_title="S-ACE Cloud Performance Portal", layout="wide", p
 
 # 2. Complete 28-Athlete Roster Matrix (Row-Level Security Authentication Registry)
 USER_DB = {
-    "coaching_staff": {"pass": "sace_elite_2027", "role": "coach", "name": "Head Coach", "gender": "N/A", "current_age": 99, "grade": "Staff"},
+    "coaching_staff": {"pass": "sace_elite_2027", "role": "coach", "name": "Head Coach", "gender": "boy", "current_age": 99, "grade": "Staff"},
     # Grade 12
-    "hayden.c": {"pass": "cornelius1269", "role": "athlete", "name": "Hayden Cornelius", "gender": "girl", "current_age": 18, "grade": 12},
+    "hayden.c": {"pass": "cornelius1269", "role": "athlete", "name": "Haydan-Reese Cornelius", "gender": "girl", "current_age": 18, "grade": 12},
     "chanlynne.b": {"pass": "brown1241", "role": "athlete", "name": "Chanlynne Brown", "gender": "girl", "current_age": 18, "grade": 12},
     "ashrin.f": {"pass": "flink1176", "role": "athlete", "name": "Ashrin Flink", "gender": "boy", "current_age": 18, "grade": 12},
     # Grade 11
@@ -21,24 +21,24 @@ USER_DB = {
     "charne.k": {"pass": "kayser1198", "role": "athlete", "name": "Charne Kayser", "gender": "girl", "current_age": 17, "grade": 11},
     "mitchell.m": {"pass": "maarman2115", "role": "athlete", "name": "Mitchell Maarman", "gender": "boy", "current_age": 17, "grade": 11},
     "lezario.m": {"pass": "meyer1057", "role": "athlete", "name": "Lezario Meyer", "gender": "boy", "current_age": 17, "grade": 11},
-    "sharon.s": {"pass": "september1261", "role": "athlete", "name": "Sharon September", "gender": "girl", "current_age": 17, "grade": 11},
+    "sharon.s": {"pass": "september1261", "role": "athlete", "name": "Sharonay September", "gender": "girl", "current_age": 17, "grade": 11},
     "kim.c": {"pass": "cloete1300", "role": "athlete", "name": "Kim Cloete", "gender": "girl", "current_age": 17, "grade": 11},
     "alicia.f": {"pass": "festus1224", "role": "athlete", "name": "Alicia Festus", "gender": "girl", "current_age": 18, "grade": 11},
     # Grade 10
-    "melissa.m": {"pass": "mahone1264", "role": "athlete", "name": "Melissa Mahone", "girl": "girl", "current_age": 16, "grade": 10},
+    "melissa.m": {"pass": "mahone1264", "role": "athlete", "name": "Melissa Mhone", "gender": "girl", "current_age": 16, "grade": 10},
     "shinique.s": {"pass": "samuels2639", "role": "athlete", "name": "Shinique Samuels", "gender": "girl", "current_age": 16, "grade": 10},
-    "cairo.dk": {"pass": "deklerk1075", "role": "athlete", "name": "Cairo de Klerk", "gender": "boy", "current_age": 16, "grade": 10},
+    "cairo.dk": {"pass": "deklerk1075", "role": "athlete", "name": "Cairo De Klerk", "gender": "boy", "current_age": 16, "grade": 10},
     "lienke.vh": {"pass": "vanhelsdingen1369", "role": "athlete", "name": "Lienke Van Helsdingen", "gender": "girl", "current_age": 16, "grade": 10},
     "jayden.dt": {"pass": "dutoit1080", "role": "athlete", "name": "Jayden Du Toit", "gender": "boy", "current_age": 16, "grade": 10},
     "kevin.l": {"pass": "loumouamou1139", "role": "athlete", "name": "Kevin Loumouamou", "gender": "boy", "current_age": 15, "grade": 10},
-    "elmira.d": {"pass": "doissen1215", "role": "athlete", "name": "Elmira Doissen", "gender": "girl", "current_age": 16, "grade": 10},
+    "elmira.d": {"pass": "doissen1215", "role": "athlete", "name": "Elmira Doysen", "gender": "girl", "current_age": 16, "grade": 10},
     "bea.dv": {"pass": "devilliers2738", "role": "athlete", "name": "Bea De Villiers", "gender": "girl", "current_age": 16, "grade": 10},
     # Grade 9
-    "tyler.vn": {"pass": "vanneel1189", "role": "athlete", "name": "Tyler van Neel", "gender": "boy", "current_age": 15, "grade": 9},
+    "tyler.vn": {"pass": "vanneel1189", "role": "athlete", "name": "Tyler Van Neel", "gender": "boy", "current_age": 15, "grade": 9},
     "local.lp": {"pass": "poole1118", "role": "athlete", "name": "Liam Poole", "gender": "boy", "current_age": 15, "grade": 9},
     "tamzin.a": {"pass": "amos2801", "role": "athlete", "name": "Tamzin Amos", "gender": "boy", "current_age": 15, "grade": 9},
     "raisha.j": {"pass": "joubert1322", "role": "athlete", "name": "Raisha Joubert", "gender": "girl", "current_age": 15, "grade": 9},
-    "shassa.lo": {"pass": "owies1213", "role": "athlete", "name": "Shassa Lee Owies", "gender": "girl", "current_age": 15, "grade": 9},
+    "shassa.lo": {"pass": "owies1213", "role": "athlete", "name": "Shassa-Lee Owies", "gender": "girl", "current_age": 15, "grade": 9},
     "amber.n": {"pass": "nel1251", "role": "athlete", "name": "Amber Nel", "gender": "girl", "current_age": 15, "grade": 9},
     "faith.b": {"pass": "barbery3053", "role": "athlete", "name": "Faith Barbery", "gender": "girl", "current_age": 15, "grade": 9},
     "tarryn.s": {"pass": "simonse1304", "role": "athlete", "name": "Tarryn Simonse", "gender": "girl", "current_age": 16, "grade": 9},
@@ -59,43 +59,50 @@ def get_gspread_client():
         return None
 
 # Target Tab Ingestion Pipeline Engine
-@st.cache_data(ttl=30)
+@st.cache_data(ttl=15)
 def fetch_athlete_live_track_data(athlete_name, event_type):
     gc = get_gspread_client()
     if gc is None: return None
     try:
-        # Securely lock onto the Form Responses 1 data tab
         sheet = gc.open_by_key(RACE_RESULTS_SPREADSHEET_ID).worksheet("Form Responses 1")
         records = sheet.get_all_records()
         df = pd.DataFrame(records)
-        
-        # Standardize matching cases to handle space variants
         df.columns = [str(c).strip() for c in df.columns]
         
-        # Dynamic Row-Filter configuration
         athlete_rows = df[df['Athlete Name'].astype(str).str.lower().str.strip() == athlete_name.lower().strip()]
         if athlete_rows.empty: return None
             
         parsed_history = []
         for _, row in athlete_rows.iterrows():
-            # Parse year dynamically out of the string date column (e.g., "25/01/2023" -> 2023)
             raw_date = str(row.get('Date', ''))
             try:
-                year = int(raw_date.split('/')[-1].split(' ')[0])
+                year = int(raw_date.split('-')[0].strip())
             except Exception:
                 year = 2026
                 
-            # Direct mapping adjustment for your exact sheet header text layout
-            target_col = "PB 100M 2023" if "100M" in event_type else "60m Sprint"
-            mark = row.get(target_col, None)
-            
-            if mark and str(mark).strip() != "" and str(mark).lower() != "nan":
-                # Strip out trailing metrics text to isolate raw float digits
-                clean_mark = float(str(mark).lower().replace('s', '').replace('m', '').strip())
-                parsed_history.append({"Year": year, "Mark": clean_mark})
+            if event_type == "100M Sprints":
+                mark = row.get("100M Sprint", None)
+            elif event_type == "200M Sprints":
+                mark = row.get("200M Sprint", None)
+            elif event_type == "400M Sprints":
+                mark = row.get("400M Sprint", None)
+            else:
+                mark = row.get("LONG JUMP", None)
+                
+            if mark and str(mark).strip() != "" and str(mark).lower() != "nan" and str(mark).strip() != "0":
+                try:
+                    clean_mark = float(str(mark).lower().replace('s', '').replace('m', '').strip())
+                    parsed_history.append({"Year": year, "Mark": clean_mark})
+                except ValueError:
+                    continue
                 
         if not parsed_history: return None
-        return pd.DataFrame(parsed_history).sort_values(by="Year")
+        res_df = pd.DataFrame(parsed_history)
+        if event_type == "Long Jump":
+            res_df = res_df.groupby("Year", as_index=False).max()
+        else:
+            res_df = res_df.groupby("Year", as_index=False).min()
+        return res_df.sort_values(by="Year")
     except Exception:
         return None
 
@@ -108,10 +115,17 @@ def calculate_ape_points(mark, event, gender, current_age, season_year):
     if "100" in event:
         if gender == "boy": pts = 1000 - ((mark - 10.50) * 150) if mark > 10.50 else 1000
         else: pts = 1000 - ((mark - 11.50) * 130) if mark > 11.50 else 1000
-    else: # 60m Sprint Calculation Standard representation
-        pts = 1000 - ((mark - 6.80) * 200) if mark > 6.80 else 1000
+    elif "200" in event:
+        if gender == "boy": pts = 1000 - ((mark - 21.20) * 70) if mark > 21.20 else 1000
+        else: pts = 1000 - ((mark - 24.00) * 65) if mark > 24.00 else 1000
+    elif "400" in event:
+        if gender == "boy": pts = 1000 - ((mark - 48.00) * 35) if mark > 48.00 else 1000
+        else: pts = 1000 - ((mark - 56.00) * 30) if mark > 56.00 else 1000
+    else:
+        pts = (mark / 6.50) * 1000 if mark < 6.50 else 1000
         
     return int(min(max(pts, 0), 1000))
+# 5. Global Authentication Router Logic
 if "authenticated" not in st.session_state:
     st.session_state["authenticated"] = False
     st.session_state["role"] = None
@@ -140,15 +154,17 @@ else:
         st.session_state["username"] = None
         st.rerun()
 
+    # 🟢 MASTER COHORT MODULE: MASTER COACH SQUAD DASHBOARD VIEW
     if st.session_state["role"] == "coach":
         st.title("📈 Acute-to-Chronic Workload Ratio (ACWR) Monitor")
-        fig, ax = plt.subplots(figsize=(10, 2.5))
+        
+        fig, ax = plt.subplots(figsize=(10, 2.2))
         dates = [f"2026-10-{i}" for i in range(13, 31)] + [f"2026-11-0{i}" for i in range(1, 10)]
         ratios = [1.0, 1.0, 0.99, 1.0, 0.98, 0.96, 0.98, 0.92, 0.99, 1.01, 1.0, 0.96, 0.97, 1.01, 0.94, 0.89, 0.84, 0.80, 0.78, 0.85, 0.86, 0.79]
-        ax.plot(dates[:len(ratios)], ratios, color="purple", label="Current ACWR Trend", linewidth=2)
+        ax.plot(dates[:len(ratios)], ratios, color="purple", marker="o", label="Current ACWR Trend", linewidth=2)
         ax.axhline(1.5, color="red", linestyle="--", label="High Risk Boundary (1.5)")
         ax.axhline(1.0, color="green", linestyle=":", label="Optimal Balance (1.0)")
-        ax.set_ylim(0.7, 1.6)
+        ax.set_ylim(0.5, 1.7)
         ax.set_ylabel("Workload Ratio")
         ax.legend(loc="upper left")
         plt.xticks(rotation=15)
@@ -159,10 +175,12 @@ else:
         roster_list = [{"User ID": uid, "Athlete Name": det["name"], "Gender": det["gender"].capitalize(), "Current Age": det["current_age"], "Grade": det["grade"]} for uid, det in USER_DB.items() if det["role"] == "athlete"]
         st.dataframe(pd.DataFrame(roster_list), use_container_width=True)
 
+        # 🎯 INTERACTIVE DRILL-DOWN PANEL GENERATION ENGINE (LIVE WIRED)
         st.markdown("---")
         st.header("🔍 Individual Athlete Explorer & Deep-Dive Metrics")
+        
         athlete_names_mapping = {det["name"]: uid for uid, det in USER_DB.items() if det["role"] == "athlete"}
-        selected_name = st.selectbox("Select an Athlete Profile to Deep-Dive Into:", list(athlete_names_mapping.keys()))
+        selected_name = st.selectbox("Select an Athlete Profile to Deep-Dive Into:", sorted(list(athlete_names_mapping.keys())))
         
         if selected_name:
             tgt_uid = athlete_names_mapping[selected_name]
@@ -172,26 +190,32 @@ else:
             
             with col_a:
                 st.write(f"**Gender:** {tgt_info['gender'].capitalize()} | **Current Age:** {tgt_info['current_age']} | **Grade:** {tgt_info['grade']}")
-                event_choice = st.selectbox(f"Filter Event Discipline Metrics for {tgt_info['name']}:", ["100M Sprints", "60m Sprint"])
+                event_choice = st.selectbox(f"Filter Event Discipline Metrics for {tgt_info['name']}:", ["100M Sprints", "200M Sprints", "400M Sprints", "Long Jump"])
                 
+                # Fetch Real-Time Data from Google Sheet
                 live_df = fetch_athlete_live_track_data(selected_name, event_choice)
+                
                 if live_df is not None and not live_df.empty:
                     live_df["Capped APE Score"] = live_df.apply(lambda r: calculate_ape_points(r["Mark"], event_choice, tgt_info["gender"], tgt_info["current_age"], r["Year"]), axis=1)
                     display_df = live_df.copy()
-                    display_df["Mark"] = display_df["Mark"].apply(lambda val: f"{val}s")
-                    st.table(display_df.rename(columns={"Year": "Competition Season", "Mark": "Logged Mark"}))
+                    display_df["Mark"] = display_df["Mark"].apply(lambda val: f"{val}s" if event_choice != "Long Jump" else f"{val}m")
+                    st.table(display_df.rename(columns={"Year": "Competition Season", "Mark": "Logged Season Best"}))
+                    
+                    fig2, ax2 = plt.subplots(figsize=(6, 2.5))
+                    ax2.plot(live_df["Year"].astype(str), live_df["Capped APE Score"], marker="s", color="#1f77b4", linewidth=2, label="APE Points")
+                    ax2.axhline(1000, color="red", linestyle="--", alpha=0.5)
+                    ax2.set_ylabel("APE Points Scale")
+                    ax2.set_ylim(400, 1050)
+                    ax2.grid(True, linestyle=":", alpha=0.6)
+                    st.pyplot(fig2)
                 else:
-                    st.info(f"📅 No live rows captured inside tab for {selected_name} matching {event_choice}. Showing baseline targets.")
-                    fallback_years = [2023, 2024, 2025, 2026]
-                    fallback_marks = [12.10, 11.85, 11.45, 11.14] if tgt_info["gender"] == "boy" else [13.45, 13.12, 12.85, 12.61]
-                    fallback_pts = [calculate_ape_points(m, event_choice, tgt_info["gender"], tgt_info["current_age"], y) for y, m in zip(fallback_years, fallback_marks)]
-                    st.table(pd.DataFrame({"Competition Season": fallback_years, "Logged Mark": [f"{m}s" for m in fallback_marks], "Capped APE Score": fallback_pts}))
+                    st.warning(f"📅 No rows found inside 'Form Responses 1' for {selected_name} under event: {event_choice}.")
 
             with col_b:
                 st.write("#### 🏋️ Strategic Gym Deployment Profile")
-                if tgt_uid in ["clayton.vw", "mitchell.m", "lezario.m"]: st.info("Track Directive Group: **Track A (Progressive Strength Overload)**")
-                elif tgt_uid in ["sharon.s", "kevin.l", "tamzin.a"]: st.warning("Track Directive Group: **Track B (Biomechanical Alignment Focus)**")
-                else: st.success("Track Directive Group: **Foundational Conditioning**")
+                if tgt_uid in ["clayton.vw", "mitchell.m", "lezario.m", "ashrin.f"]: st.info("Track Directive Group: **Track A (Progressive Strength Overload)**\n\nGym Profile Focus: Max strength pyramid load adaptation sequence clearance cleared.")
+                elif tgt_uid in ["sharon.s", "kevin.l", "tamzin.a"]: st.warning("Track Directive Group: **Track B (Biomechanical Alignment Focus)**\n\nGym Profile Focus: Box Squat track optimization to reduce patellar stress markers.")
+                else: st.success("Track Directive Group: **Foundational Conditioning**\n\nGym Profile Focus: Core tightness alignment velocity loading tracks active.")
                 
                 st.write("#### 📋 Logged Practice Feed Logs (Live Filtered rows)")
                 gc = get_gspread_client()
@@ -211,16 +235,18 @@ else:
         c1, c2 = st.columns(2)
         with c1:
             st.subheader("Your Multi-Season Progression Metrics")
-            personal_event = st.selectbox("Select Event Log View:", ["100M Sprints", "60m Sprint"])
+            personal_event = st.selectbox("Select Event Log View:", ["100M Sprints", "200M Sprints", "400M Sprints", "Long Jump"])
             live_df = fetch_athlete_live_track_data(st.session_state['name'], personal_event)
             if live_df is not None and not live_df.empty:
                 live_df["Capped APE Score"] = live_df.apply(lambda r: calculate_ape_points(r["Mark"], personal_event, user_info["gender"], user_info["current_age"], r["Year"]), axis=1)
-                st.table(live_df.rename(columns={"Year": "Competition Season", "Mark": "Logged Mark"}))
-            else:
-                fallback_years = [2023, 2024, 2025, 2026]
-                fallback_my_marks = [12.10, 11.90, 11.42, 10.93] if user_info["gender"] == "boy" else [13.45, 13.15, 12.92, 12.61]
-                fallback_pts_history = [calculate_ape_points(m, personal_event, user_info["gender"], user_info["current_age"], y) for y, m in zip(fallback_years, fallback_my_marks)]
-                st.table(pd.DataFrame({"Competition Season": fallback_years, "Logged Mark": [f"{m}s" for m in fallback_my_marks], "Capped APE Score": fallback_pts_history}))
+                st.table(live_df.rename(columns={"Year": "Competition Season", "Mark": "Logged Season Best"}))
+                
+                fig2, ax2 = plt.subplots(figsize=(6, 2.5))
+                ax2.plot(live_df["Year"].astype(str), live_df["Capped APE Score"], marker="s", color="#ff7f0e", linewidth=2)
+                ax2.set_ylim(400, 1050)
+                ax2.grid(True, linestyle=":")
+                st.pyplot(fig2)
+            else: st.warning("🔍 Data connection checking row matrix logs...")
 
         with c2:
             st.subheader("📝 Post-Workout Practice Matrix Capture Form")
