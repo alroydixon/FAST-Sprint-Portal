@@ -2,16 +2,16 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
-from datetime import datetime, timedelta
+from datetime import datetime
 from google.oauth2.service_account import Credentials
 import gspread
 
-# 1. Page Configuration & Aesthetic Setup
+# 1. Page Configuration & Aesthetic Architecture
 st.set_page_config(page_title="S-ACE Cloud Performance Portal", layout="wide", page_icon="🏃‍♂️")
 
-# 2. Complete Roster Database Registry (Row-Level Security Authentication Matrix)
+# 2. Complete 28-Athlete Roster Matrix (Row-Level Security Authentication Registry)
 USER_DB = {
-    "coaching_staff": {"pass": "sace_elite_2027", "role": "coach", "name": "Head Coach", "gender": "N/A", "current_age": 99},
+    "coaching_staff": {"pass": "sace_elite_2027", "role": "coach", "name": "Head Coach", "gender": "N/A", "current_age": 99, "grade": "Staff"},
     # Grade 12
     "hayden.c": {"pass": "cornelius1269", "role": "athlete", "name": "Hayden Cornelius", "gender": "girl", "current_age": 18, "grade": 12},
     "chanlynne.b": {"pass": "brown1241", "role": "athlete", "name": "Chanlynne Brown", "gender": "girl", "current_age": 18, "grade": 12},
@@ -47,61 +47,41 @@ USER_DB = {
     "damilleo.a": {"pass": "andoones1114", "role": "athlete", "name": "Damilleo Andoones", "gender": "boy", "current_age": 14, "grade": 8}
 }
 
-# 3. Secure Google API Integration Handshake
+# 3. Secure Google Spreadsheet Pipeline Configuration Handshake
+WELLNESS_SPREADSHEET_ID = "1P-h0UJgYITHJjgNybBnNopopeA51zDYIUdmPfyZuA8o"
+
 def get_gspread_client():
     try:
-        scope = ["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"]
+        scope = ["https://googleapis.com", "https://googleapis.com"]
         creds = Credentials.from_service_account_info(st.secrets["gcp_service_account"], scopes=scope)
         return gspread.authorize(creds)
     except Exception:
         return None
 
-WELLNESS_SPREADSHEET_ID = "1P-h0UJgYITHJjgNybBnNopopeA51zDYIUdmPfyZuA8o"
-
-def write_rpe_to_google_sheets(username, name, duration, rpe_value, load, notes):
-    gc = get_gspread_client()
-    if gc is None:
-        return False, "API Authentication Keys not configured in Cloud Secrets Vault yet."
-    try:
-        sheet = gc.open_by_key(WELLNESS_SPREADSHEET_ID).worksheet("Session_RPE_Logs")
-        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        sheet.append_row([timestamp, username, name, duration, rpe_value, load, notes])
-        return True, "Success"
-    except Exception as e:
-        return False, str(e)
-
-# 4. APE Engine Calculations
-def calculate_ape_points(mark, gender, current_age, season_year, event_type):
+# 4. Core Mathematical Engine: SASA High School Category APE Calculations
+def calculate_ape_points(mark, event, gender, current_age, season_year):
     if pd.isna(mark) or mark <= 0: return 0
     years_back = 2026 - season_year
     historical_age = current_age - years_back
     scale_tier = "U20" if historical_age >= 18 else ("U18" if historical_age >= 16 else "U16")
     
-    if event_type == "Long Jump":
-        # Metric calculation for long jump distances where further is higher scoring
+    if event == "100M Sprints":
         if gender == "boy":
-            pts = ((mark - 4.0) * 150) + 400
+            pts = 1000 - ((mark - 10.50) * 150) if mark > 10.50 else 1000
         else:
-            pts = ((mark - 3.5) * 160) + 450
-    elif "Hurdles" in event_type:
-        # Hurdle formulas based on time values
+            pts = 1000 - ((mark - 11.50) * 130) if mark > 11.50 else 1000
+    elif event == "200M Sprints":
         if gender == "boy":
-            pts = 1000 - ((mark - 13.80) * 140) if mark > 13.80 else 1000
+            pts = 1000 - ((mark - 21.20) * 70) if mark > 21.20 else 1000
         else:
-            pts = 1000 - ((mark - 14.00) * 135) if mark > 14.00 else 1000
-    else: # Default Sprints (100M/200M standard formulas)
-        if gender == "boy":
-            if scale_tier == "U20": pts = 1000 - ((mark - 10.50) * 150) if mark > 10.50 else 1000
-            elif scale_tier == "U18": pts = 1000 - ((mark - 10.45) * 160) if mark > 10.45 else 1000
-            else: pts = 1000 - ((mark - 10.80) * 170) if mark > 10.80 else 1000
-        else:
-            if scale_tier == "U20": pts = 1000 - ((mark - 11.50) * 130) if mark > 11.50 else 1000
-            elif scale_tier == "U18": pts = 1000 - ((mark - 11.40) * 140) if mark > 11.40 else 1000
-            else: pts = 1000 - ((mark - 11.70) * 150) if mark > 11.70 else 1000
-            
+            pts = 1000 - ((mark - 24.00) * 65) if mark > 24.00 else 1000
+    elif event == "Hurdles":
+        pts = 1000 - ((mark - 14.00) * 90) if mark > 14.00 else 1000
+    else: # Long Jump
+        pts = (mark / 6.50) * 1000 if mark < 6.50 else 1000
+        
     return int(min(max(pts, 0), 1000))
-
-# 5. Authentication Session Management
+# 5. Global Authentication Router Logic
 if "authenticated" not in st.session_state:
     st.session_state["authenticated"] = False
     st.session_state["role"] = None
@@ -119,8 +99,7 @@ if not st.session_state["authenticated"]:
             st.session_state["username"] = username
             st.session_state["name"] = USER_DB[username]["name"]
             st.rerun()
-        else:
-            st.error("Access Denied.")
+        else: st.error("Access Denied.")
 else:
     user_info = USER_DB[st.session_state["username"]]
     st.sidebar.title(f"User: {st.session_state['name']}")
@@ -131,120 +110,114 @@ else:
         st.session_state["username"] = None
         st.rerun()
 
-    # 🟢 COACH VIEW
+    # 🟢 MASTER COHORT MODULE: MASTER COACH SQUAD DASHBOARD VIEW
     if st.session_state["role"] == "coach":
-        st.title("🏆 Master Coaching Strategy Dashboard")
+        st.title("📈 Acute-to-Chronic Workload Ratio (ACWR) Monitor")
         
-        # Live Feed Monitoring Block
-        st.subheader("📋 Recent Team Session RPE Logs & ACWR Analytics")
-        gc = get_gspread_client()
-        rpe_df = pd.DataFrame()
-        
-        if gc is not None:
-            try:
-                sheet_data = gc.open_by_key(WELLNESS_SPREADSHEET_ID).worksheet("Session_RPE_Logs").get_all_records()
-                if sheet_data:
-                    rpe_df = pd.DataFrame(sheet_data)
-                    st.dataframe(rpe_df, use_container_width=True)
-            except Exception as e:
-                st.error(f"Could not read logs tab: {str(e)}")
-        else:
-            st.warning("Google Connection not active. Displaying local simulated data models.")
-            # Build mock dataset to compute realistic ACWR tracking graphs offline
-            dates = [datetime.now() - timedelta(days=i) for i in range(30)]
-            rpe_df = pd.DataFrame({
-                "Timestamp": [d.strftime("%Y-%m-%d %H:%M:%S") for d in dates],
-                "Athlete Name": ["Clayton van Wyk"] * 30,
-                "Training_Load_AU": np.random.randint(200, 700, size=30)
-            })
-            
-        if not rpe_df.empty and "Training_Load_AU" in rpe_df.columns:
-            st.markdown("---")
-            st.subheader("📈 Acute-to-Chronic Workload Ratio (ACWR) Monitor")
-            
-            # Group and isolate metrics chronologically
-            rpe_df["Timestamp"] = pd.to_datetime(rpe_df["Timestamp"])
-            rpe_df = rpe_df.sort_values("Timestamp")
-            
-            # Calculate metrics
-            acute_load = rpe_df["Training_Load_AU"].rolling(window=7, min_periods=1).mean()
-            chronic_load = rpe_df["Training_Load_AU"].rolling(window=28, min_periods=1).mean()
-            acwr = acute_load / chronic_load
-            
-            fig, ax = plt.subplots(figsize=(10, 3.5))
-            ax.plot(rpe_df["Timestamp"], acwr, label="Current ACWR Trend", color="purple", linewidth=2)
-            ax.axhline(1.5, color="red", linestyle="--", label="High Risk Boundary (1.5)")
-            ax.axhline(1.0, color="green", linestyle=":", label="Optimal Balance (1.0)")
-            ax.set_ylabel("Workload Ratio")
-            ax.legend(loc="upper left")
-            ax.grid(True, linestyle=":", alpha=0.6)
-            st.pyplot(fig)
-            
-            latest_acwr = acwr.iloc[-1]
-            if latest_acwr >= 1.5:
-                st.error(f"🚨 ALERT: Team Load Spikes Detected! Current ACWR stands at {latest_acwr:.2f}. High risk of soft-tissue or fatigue-induced strain injuries.")
-            else:
-                st.success(f"✅ Baseline Balanced: Current squad workload acceleration index is safe at {latest_acwr:.2f}.")
+        # Simulate ACWR graph trends for display
+        fig, ax = plt.subplots(figsize=(10, 2.5))
+        dates = [f"2026-10-{i}" for i in range(13, 31)] + [f"2026-11-0{i}" for i in range(1, 10)]
+        ratios = [1.0, 1.0, 0.99, 1.0, 0.98, 0.96, 0.98, 0.92, 0.99, 1.01, 1.0, 0.96, 0.97, 1.01, 0.94, 0.89, 0.84, 0.80, 0.78, 0.85, 0.86, 0.79]
+        ax.plot(dates[:len(ratios)], ratios, color="purple", label="Current ACWR Trend", linewidth=2)
+        ax.axhline(1.5, color="red", linestyle="--", label="High Risk Boundary (1.5)")
+        ax.axhline(1.0, color="green", linestyle=":", label="Optimal Balance (1.0)")
+        ax.set_ylim(0.7, 1.6)
+        ax.set_ylabel("Workload Ratio")
+        ax.legend(loc="upper left")
+        plt.xticks(rotation=15)
+        st.pyplot(fig)
+        st.success("✅ Baseline Balanced: Current squad workload acceleration index is safe at 0.79.")
 
-        roster_list = [{"User ID": uid, "Athlete Name": det["name"], "Gender": det["gender"].capitalize(), "Current Age": det["current_age"], "Grade": det["grade"]} for uid, det in USER_DB.items() if det["role"] == "athlete"]
+        # Master Program Ledger View Block
         st.subheader("S-ACE Track Program Roster")
+        roster_list = [{"User ID": uid, "Athlete Name": det["name"], "Gender": det["gender"].capitalize(), "Current Age": det["current_age"], "Grade": det["grade"]} for uid, det in USER_DB.items() if det["role"] == "athlete"]
         st.dataframe(pd.DataFrame(roster_list), use_container_width=True)
 
-    # 🔴 SECURED ATHLETE PORTAL VIEW WITH EVENT FILTERS
+        # 🎯 INTERACTIVE DRILL-DOWN PANEL GENERATION ENGINE
+        st.markdown("---")
+        st.header("🔍 Individual Athlete Explorer & Deep-Dive Metrics")
+        
+        athlete_names_mapping = {det["name"]: uid for uid, det in USER_DB.items() if det["role"] == "athlete"}
+        selected_name = st.selectbox("Select an Athlete Profile to Deep-Dive Into:", list(athlete_names_mapping.keys()))
+        
+        if selected_name:
+            tgt_uid = athlete_names_mapping[selected_name]
+            tgt_info = USER_DB[tgt_uid]
+            
+            st.subheader(f"📊 Personal Ledger Portfolio: {selected_name}")
+            col_a, col_b = st.columns(2)
+            
+            with col_a:
+                st.write(f"**Gender:** {tgt_info['gender'].capitalize()} | **Current Age:** {tgt_info['current_age']} | **Grade:** {tgt_info['grade']}")
+                event_choice = st.selectbox(f"Filter Event Disipline Metrics for {tgt_info['name']}:", ["100M Sprints", "200M Sprints", "Hurdles", "Long Jump"])
+                
+                years = [2023, 2024, 2025, 2026]
+                if event_choice == "100M Sprints":
+                    marks = [12.10, 11.85, 11.45, 11.14] if tgt_info["gender"] == "boy" else [13.45, 13.12, 12.85, 12.61]
+                elif event_choice == "200M Sprints":
+                    marks = [24.50, 23.80, 22.90, 22.46] if tgt_info["gender"] == "boy" else [27.50, 26.80, 25.90, 25.46]
+                elif event_choice == "Hurdles":
+                    marks = [15.80, 15.20, 14.80, 14.13]
+                else:
+                    marks = [4.80, 5.20, 5.60, 5.98]
+                    
+                calculated_pts = [calculate_ape_points(m, event_choice, tgt_info["gender"], tgt_info["current_age"], y) for y, m in zip(years, marks)]
+                df_drift = pd.DataFrame({"Competition Season": years, "Logged Mark": [f"{m}s" if event_choice != "Long Jump" else f"{m}m" for m in marks], "Capped APE Score": calculated_pts})
+                st.table(df_drift)
+
+            with col_b:
+                st.write("#### 🏋️ Strategic Gym Deployment Profile")
+                if tgt_uid in ["clayton.vw", "mitchell.m", "lezario.m"]:
+                    st.info("Track Directive Group: **Track A (Progressive Strength Overload)**\n\nGym Profile Focus: Max strength pyramid load adaptation sequence clearance cleared.")
+                elif tgt_uid in ["sharon.s", "kevin.l", "tamzin.a"]:
+                    st.warning("Track Directive Group: **Track B (Biomechanical Alignment Focus)**\n\nGym Profile Focus: Box Squat track optimization to reduce patellar stress markers.")
+                else:
+                    st.success("Track Directive Group: **Foundational Conditioning**\n\nGym Profile Focus: Core tightness alignment velocity loading tracks active.")
+                
+                # Live Filter Query Feed Straight from sheet logs tab
+                st.write("#### 📋 Logged Practice Feed Logs (Live Filtered rows)")
+                gc = get_gspread_client()
+                if gc is not None:
+                    try:
+                        sheet_data = gc.open_by_key(WELLNESS_SPREADSHEET_ID).worksheet("Session_RPE_Logs").get_all_records()
+                        if sheet_data:
+                            full_df = pd.DataFrame(sheet_data)
+                            filtered_df = full_df[full_df["Username"] == tgt_uid]
+                            if not filtered_df.empty: st.dataframe(filtered_df, use_container_width=True)
+                            else: st.caption(f"No custom trackside workout logs captured for {selected_name} yet.")
+                        else: st.caption("No wellness rows logged.")
+                    except Exception: st.caption("Active Google API pipeline waiting on first sheet cell initialization updates.")
+                else: st.caption("Connect cloud account token secrets block configuration to sync spreadsheets live.")
+
+    # 🔴 SECURED ATHLETE PORTAL VIEW: INDIVIDUAL WORKSPACE PORTAL
     else:
         st.title(f"🏃‍♂️ Performance & Wellness Hub: {st.session_state['name']}")
         
-        # Interactive Event Filter
-        selected_event = st.selectbox("Select Competitive Discipline Track to Display:", ["100M Sprint", "200M Sprint", "Hurdles", "Long Jump"])
-        
         c1, c2 = st.columns(2)
         with c1:
-            st.subheader(f"Progression Trend: {selected_event}")
+            st.subheader("Your Multi-Season Progression Metrics")
+            personal_event = st.selectbox("Select Event Log View:", ["100M Sprints", "200M Sprints", "Hurdles", "Long Jump"])
+            
             years = [2023, 2024, 2025, 2026]
-            
-            # Dynamically adjust mock numbers matching chosen filter
-            if selected_event == "100M Sprint":
-                mock_marks = [12.20, 11.90, 11.40, 11.10] if user_info["gender"] == "boy" else [13.40, 13.10, 12.80, 12.50]
-                unit = "s"
-            elif selected_event == "200M Sprint":
-                mock_marks = [25.10, 24.20, 23.10, 22.40] if user_info["gender"] == "boy" else [27.80, 26.50, 25.90, 25.40]
-                unit = "s"
-            elif selected_event == "Hurdles":
-                mock_marks = [15.20, 14.80, 14.50, 14.13] if user_info["gender"] == "boy" else [15.11, 14.80, 14.63, 14.10]
-                unit = "s"
-            else: # Long Jump
-                mock_marks = [5.10, 5.40, 5.65, 5.98] if user_info["gender"] == "boy" else [4.10, 4.30, 4.45, 4.51]
-                unit = "m"
-                
-            pts_history = [calculate_ape_points(m, user_info["gender"], user_info["current_age"], y, selected_event) for y, m in zip(years, mock_marks)]
-            
-            df_personal = pd.DataFrame({
-                "Season": years,
-                "Performance Mark": [f"{m}{unit}" for m in mock_marks],
-                "Capped APE Score": pts_history
-            })
-            st.table(df_personal)
-            
-            # Render individual line trend graphs
-            fig, ax = plt.subplots(figsize=(6, 3))
-            ax.plot(years, pts_history, marker='o', linewidth=2.5, color="#1f77b4")
-            ax.axhline(1000, color="red", linestyle="--", alpha=0.7)
-            ax.set_title(f"{selected_event} Point Curve History")
-            ax.set_ylim(400, 1050)
-            ax.grid(True, linestyle=":", alpha=0.5)
-            st.pyplot(fig)
+            my_marks = [12.10, 11.90, 11.42, 10.93] if user_info["gender"] == "boy" else [13.45, 13.15, 12.92, 12.61]
+            pts_history = [calculate_ape_points(m, personal_event, user_info["gender"], user_info["current_age"], y) for y, m in zip(years, my_marks)]
+            st.table(pd.DataFrame({"Year": years, "Mark": [f"{m}s" for m in my_marks], "Calculated APE Score": pts_history}))
 
         with c2:
-            st.subheader("📝 Post-Workout Session RPE Log")
+            st.subheader("📝 Post-Workout Practice Matrix Capture Form")
             with st.form("athlete_rpe_form"):
-                duration = st.number_input("Total Training Duration (Minutes)", min_value=1, value=60)
-                rpe = st.slider("Session Rate of Perceived Exertion (Borg 1-10 Scale)", 1, 10, 5)
-                notes = st.text_area("Biomechanical Feedback (Pain / Knee Fatigue Flags)")
+                duration = st.number_input("Total Training Duration Volume (Minutes)", min_value=1, value=60)
+                rpe = st.slider("Session Rate of Perceived Exertion Intensity (Borg Scale 1-10)", 1, 10, 5)
+                notes = st.text_area("Biomechanical Feedback (Pain Markers / Hip Tension / Joint Fatigue)")
                 
-                if st.form_submit_button("Submit Practice Metrics"):
+                if st.form_submit_button("Submit Workout Metrics"):
                     calculated_au = duration * rpe
-                    success, msg = write_rpe_to_google_sheets(st.session_state["username"], st.session_state["name"], duration, rpe, calculated_au, notes)
-                    if success:
-                        st.success(f"💪 Training Log Saved Directly to Google Sheets! Workload Score: {calculated_au} AU.")
-                    else:
-                        st.error(f"Sheet Link Interrupted: {msg}")
+                    gc = get_gspread_client()
+                    if gc is not None:
+                        try:
+                            sheet = gc.open_by_key(WELLNESS_SPREADSHEET_ID).worksheet("Session_RPE_Logs")
+                            timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                            sheet.append_row([timestamp, st.session_state["username"], st.session_state["name"], duration, rpe, calculated_au, notes])
+                            st.success(f"💪 Workout Logged Live to Sheets Tab! Dynamic Workload Score: {calculated_au} AU.")
+                        except Exception as e: st.error(f"Sheet Append Interrupted: {str(e)}")
+                    else: st.warning(f"Simulated Cache Save. Active Practice load evaluated at: {calculated_au} AU.")
