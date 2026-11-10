@@ -60,7 +60,7 @@ def get_gspread_client():
     except Exception:
         return None
 
-# Horizontal Dashboard Pivot Matrix Processing Engine
+# Case-Insensitive Horizontal Matrix Processing Engine
 @st.cache_data(ttl=15)
 def fetch_athlete_live_track_data(athlete_name, event_type):
     gc = get_gspread_client()
@@ -70,11 +70,14 @@ def fetch_athlete_live_track_data(athlete_name, event_type):
         raw_grid = sheet.get_all_values()
         if not raw_grid: return None
         
-        target_discipline = "100m sprint" if "100M" in event_type else ("200m sprint" if "200M" in event_type else ("400m sprint" if "400M" in event_type else "long jump"))
+        # Standardize target substrings to cleanly locate sections down the page
+        target_keyword = "100m" if "100M" in event_type else ("200m" if "200M" in event_type else ("400m" if "400M" in event_type else "long jump"))
+        
         header_row_idx = -1
         for idx, row in enumerate(raw_grid):
-            row_joined = " ".join([str(c).lower().strip() for c in row])
-            if "trend" in row_joined and target_discipline in row_joined:
+            row_joined = "".join([str(c).lower().replace(" ", "").replace("-", "").strip() for c in row])
+            # Match keywords case-insensitively
+            if target_keyword in row_joined and ("trend" in row_joined or "sprint" in row_joined or "jump" in row_joined):
                 header_row_idx = idx + 1
                 break
                 
@@ -85,7 +88,8 @@ def fetch_athlete_live_track_data(athlete_name, event_type):
         
         name_idx = -1
         for i, h in enumerate(headers):
-            if "athlete" in h.lower() or "name" in h.lower():
+            h_clean = h.lower().strip()
+            if "athlete" in h_clean or "name" in h_clean:
                 name_idx = i
                 break
                 
@@ -96,18 +100,19 @@ def fetch_athlete_live_track_data(athlete_name, event_type):
         
         for row in data_rows:
             if len(row) <= name_idx: continue
-            if str(row[name_idx]).lower().strip() == clean_search_name:
+            row_name = str(row[name_idx]).lower().strip()
+            if row_name == clean_search_name or clean_search_name in row_name:
                 for col_idx, col_name in enumerate(headers):
-                    if "week:" in col_name.lower():
-                        # FIX: Secure String extraction parameter logic to isolate the season year safely
+                    col_clean = str(col_name).lower().replace(" ", "").strip()
+                    if "week:" in col_clean:
                         try:
-                            col_clean = str(col_name).strip()
-                            year = int("20" + col_clean[:2])
+                            # Extract 2-digit year prefix from start of string cleanly (e.g. "23week:04" -> 2023)
+                            year = 2000 + int(col_clean[:2])
                         except Exception:
                             year = 2026
                             
                         mark_str = str(row[col_idx]).strip().lower()
-                        if mark_str and mark_str != "" and mark_str != "nan" and mark_str != "0":
+                        if mark_str and mark_str != "" and mark_str != "nan" and mark_str != "0" and mark_str != "0.0":
                             try:
                                 clean_mark = float(mark_str.replace('s', '').replace('m', '').strip())
                                 parsed_history.append({"Year": year, "Mark": clean_mark})
@@ -116,7 +121,7 @@ def fetch_athlete_live_track_data(athlete_name, event_type):
                                 
         if not parsed_history: return None
         res_df = pd.DataFrame(parsed_history)
-        if "jump" in target_discipline:
+        if "jump" in target_keyword:
             res_df = res_df.groupby("Year", as_index=False).max()
         else:
             res_df = res_df.groupby("Year", as_index=False).min()
