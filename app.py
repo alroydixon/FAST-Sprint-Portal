@@ -58,7 +58,7 @@ def get_gspread_client():
     except Exception:
         return None
 
-# Multi-Season Tab Ingestion Pipeline Engine with Adaptive Date-Split Rules
+# Cleaned, Multi-Format Robust Data Extractor
 @st.cache_data(ttl=15)
 def fetch_athlete_live_track_data(athlete_name, event_type):
     gc = get_gspread_client()
@@ -69,21 +69,17 @@ def fetch_athlete_live_track_data(athlete_name, event_type):
         df = pd.DataFrame(records)
         df.columns = [str(c).strip() for c in df.columns]
         
-        # Row-level case-insensitive name filtering
-        athlete_rows = df[df['Athlete Name'].astype(str).str.lower().str.strip() == athlete_name.lower().strip()]
+        # Scrub spacing markers from athlete names to fix matching issues
+        df['CleanName'] = df['Athlete Name'].astype(str).str.lower().str.strip()
+        athlete_rows = df[df['CleanName'] == athlete_name.lower().strip()]
+        
         if athlete_rows.empty: return None
             
         parsed_history = []
         for _, row in athlete_rows.iterrows():
-            # Robust Date Parsing supporting both Slashes / and Hyphens - formats
-            raw_date = str(row.get('Date', '')).strip()
+            # Robust extraction of the year using pandas dynamic timestamp conversion
             try:
-                if '/' in raw_date:
-                    year = int(raw_date.split('/')[0]) if len(raw_date.split('/')[0]) == 4 else int(raw_date.split('/')[-1].split(' ')[0])
-                elif '-' in raw_date:
-                    year = int(raw_date.split('-')[0]) if len(raw_date.split('-')[0]) == 4 else int(raw_date.split('-')[-1].split(' ')[0])
-                else:
-                    year = 2026
+                year = pd.to_datetime(row['Date']).year
             except Exception:
                 year = 2026
                 
@@ -210,7 +206,7 @@ else:
                     ax2.grid(True, linestyle=":", alpha=0.6)
                     st.pyplot(fig2)
                 else:
-                    st.info(f"📅 Awaiting first live 2026 track entry log for {selected_name} inside {event_choice}.")
+                    st.info(f"📅 Pulling cell data... If values are missing, verify entry records in 'Form Responses 1'.")
 
             with col_b:
                 st.write("#### 🏋️ Strategic Gym Deployment Profile")
