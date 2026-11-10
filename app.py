@@ -58,25 +58,23 @@ def get_gspread_client():
     except Exception:
         return None
 
-# Advanced Raw Cell Grid Parsing Engine to bypass Row 1 Header locks
+# Unified Raw Grid Parser with Case-Insensitive Multi-Column Extraction
 @st.cache_data(ttl=15)
 def fetch_athlete_live_track_data(athlete_name, event_type):
     gc = get_gspread_client()
     if gc is None: return None
     try:
         sheet = gc.open_by_key(RACE_RESULTS_SPREADSHEET_ID).worksheet("Form Responses 1")
-        # Ingest the spreadsheet purely as a raw 2D grid of text strings
         raw_grid = sheet.get_all_values()
         if not raw_grid: return None
         
-        # Setup dynamic target indices based on keyword pattern matching
+        # Locate indices dynamically by parsing all grid rows sequentially
         name_idx, date_idx = -1, -1
         target_indices = []
         
-        # Determine the target keyword strings based on chosen event filter
-        target_keyword = "100m" if "100M" in event_type else ("200m" if "200M" in event_type else ("400m" if "400M" in event_type else "jump"))
+        # Isolate numerical keywords to prevent uppercase mismatching loops
+        target_keyword = "100" if "100M" in event_type else ("200" if "200M" in event_type else ("400" if "400M" in event_type else "long"))
         
-        # Scan through the rows to find where headers exist dynamically
         for row in raw_grid:
             row_clean = [str(cell).strip().lower() for cell in row]
             if 'athlete name' in row_clean:
@@ -84,19 +82,19 @@ def fetch_athlete_live_track_data(athlete_name, event_type):
             if 'date' in row_clean:
                 date_idx = row_clean.index('date')
             
-            # Map columns matching the requested track event across the entire layout
+            # Map column tracking arrays dynamically
             for idx, cell in enumerate(row_clean):
                 if target_keyword in cell and idx not in target_indices:
-                    target_indices.append(idx)
+                    # Filter out historical text columns to prevent duplication skewing
+                    if "pb" not in cell or target_keyword == "long":
+                        target_indices.append(idx)
                     
         if name_idx == -1 or date_idx == -1 or not target_indices: return None
         
         parsed_history = []
-        # Process and extract rows matching the target athlete name context
         for row in raw_grid:
             if len(row) <= max(name_idx, date_idx): continue
             if str(row[name_idx]).strip().lower() == athlete_name.lower().strip():
-                # Safe date string checker
                 raw_date = str(row[date_idx]).strip()
                 try:
                     if '-' in raw_date: year = int(raw_date.split('-')[0])
@@ -105,7 +103,6 @@ def fetch_athlete_live_track_data(athlete_name, event_type):
                 except Exception:
                     year = 2026
                     
-                # Scan identified index positions for marks data cells
                 for idx in target_indices:
                     if idx >= len(row): continue
                     mark_str = str(row[idx]).strip().lower()
@@ -118,7 +115,7 @@ def fetch_athlete_live_track_data(athlete_name, event_type):
                             
         if not parsed_history: return None
         res_df = pd.DataFrame(parsed_history)
-        if "jump" in target_keyword:
+        if "long" in target_keyword:
             res_df = res_df.groupby("Year", as_index=False).max()
         else:
             res_df = res_df.groupby("Year", as_index=False).min()
@@ -222,7 +219,7 @@ else:
                     ax2.grid(True, linestyle=":", alpha=0.6)
                     st.pyplot(fig2)
                 else:
-                    st.info(f"📅 Pulling historical marks from all rows... Verifying entry data grid cell coordinates.")
+                    st.info(f"📅 No tracking marks logged for {selected_name} inside the spreadsheet tab column for {event_choice}.")
 
             with col_b:
                 st.write("#### 🏋️ Strategic Gym Deployment Profile")
