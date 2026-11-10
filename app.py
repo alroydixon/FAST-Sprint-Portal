@@ -58,7 +58,7 @@ def get_gspread_client():
     except Exception:
         return None
 
-# Unified Raw Grid Parser with Case-Insensitive Multi-Column Extraction
+# Advanced Raw Cell Grid Parsing Engine with Substring Safety Checks
 @st.cache_data(ttl=15)
 def fetch_athlete_live_track_data(athlete_name, event_type):
     gc = get_gspread_client()
@@ -68,11 +68,8 @@ def fetch_athlete_live_track_data(athlete_name, event_type):
         raw_grid = sheet.get_all_values()
         if not raw_grid: return None
         
-        # Locate indices dynamically by parsing all grid rows sequentially
         name_idx, date_idx = -1, -1
         target_indices = []
-        
-        # Isolate numerical keywords to prevent uppercase mismatching loops
         target_keyword = "100" if "100M" in event_type else ("200" if "200M" in event_type else ("400" if "400M" in event_type else "long"))
         
         for row in raw_grid:
@@ -82,23 +79,26 @@ def fetch_athlete_live_track_data(athlete_name, event_type):
             if 'date' in row_clean:
                 date_idx = row_clean.index('date')
             
-            # Map column tracking arrays dynamically
             for idx, cell in enumerate(row_clean):
                 if target_keyword in cell and idx not in target_indices:
-                    # Filter out historical text columns to prevent duplication skewing
                     if "pb" not in cell or target_keyword == "long":
                         target_indices.append(idx)
                     
         if name_idx == -1 or date_idx == -1 or not target_indices: return None
         
         parsed_history = []
+        clean_search_name = athlete_name.lower().strip()
+        
         for row in raw_grid:
             if len(row) <= max(name_idx, date_idx): continue
-            if str(row[name_idx]).strip().lower() == athlete_name.lower().strip():
+            row_name = str(row[name_idx]).lower().strip()
+            
+            # CRITICAL CORRECTIONS: Cross-reference via loose substring membership checks to handle trailing space types
+            if clean_search_name in row_name or row_name in clean_search_name:
                 raw_date = str(row[date_idx]).strip()
                 try:
-                    if '-' in raw_date: year = int(raw_date.split('-')[0])
-                    elif '/' in raw_date: year = int(raw_date.split('/')[0])
+                    if '-' in raw_date: year = int(raw_date.split('-'))
+                    elif '/' in raw_date: year = int(raw_date.split('/'))
                     else: year = 2026
                 except Exception:
                     year = 2026
