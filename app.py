@@ -5,6 +5,7 @@ import matplotlib.pyplot as plt
 from datetime import datetime
 from google.oauth2.service_account import Credentials
 import gspread
+import json
 
 # 1. Page Configuration & Aesthetic Architecture
 st.set_page_config(page_title="S-ACE Cloud Performance Portal", layout="wide", page_icon="🏃‍♂️")
@@ -52,9 +53,74 @@ RACE_RESULTS_SPREADSHEET_ID = "1HOJfs2qz-oXPC73JZ0YHuiPFxvsyv3ekgOGl3I-TmkI"
 
 def get_gspread_client():
     try:
+        # Load raw flat string configuration line directly, parsing as native python JSON dict
+        info_dict = json.loads(st.secrets["raw_json_string"])
         scope = ["https://googleapis.com", "https://googleapis.com"]
-        creds = Credentials.from_service_account_info(st.secrets["gcp_service_account"], scopes=scope)
+        creds = Credentials.from_service_account_info(info_dict, scopes=scope)
         return gspread.authorize(creds)
+    except Exception:
+        return None
+
+# Horizontal Dashboard Pivot Matrix Processing Engine
+@st.cache_data(ttl=15)
+def fetch_athlete_live_track_data(athlete_name, event_type):
+    gc = get_gspread_client()
+    if gc is None: return None
+    try:
+        sheet = gc.open_by_key(RACE_RESULTS_SPREADSHEET_ID).worksheet("Form Responses 1")
+        raw_grid = sheet.get_all_values()
+        if not raw_grid: return None
+        
+        target_discipline = "100m sprint" if "100M" in event_type else ("200m sprint" if "200M" in event_type else ("400m sprint" if "400M" in event_type else "long jump"))
+        header_row_idx = -1
+        for idx, row in enumerate(raw_grid):
+            row_joined = " ".join([str(c).lower().strip() for c in row])
+            if "trend" in row_joined and target_discipline in row_joined:
+                header_row_idx = idx + 1
+                break
+                
+        if header_row_idx == -1 or header_row_idx >= len(raw_grid): return None
+        
+        headers = [str(h).strip() for h in raw_grid[header_row_idx]]
+        data_rows = raw_grid[header_row_idx + 1:]
+        
+        name_idx = -1
+        for i, h in enumerate(headers):
+            if "athlete" in h.lower() or "name" in h.lower():
+                name_idx = i
+                break
+                
+        if name_idx == -1: return None
+        
+        parsed_history = []
+        clean_search_name = athlete_name.lower().strip()
+        
+        for row in data_rows:
+            if len(row) <= name_idx: continue
+            if str(row[name_idx]).lower().strip() == clean_search_name:
+                for col_idx, col_name in enumerate(headers):
+                    if "week:" in col_name.lower():
+                        try:
+                            year_prefix = col_name.split(' ')[0].strip()
+                            year = 2000 + int(year_prefix)
+                        except Exception:
+                            year = 2026
+                            
+                        mark_str = str(row[col_idx]).strip().lower()
+                        if mark_str and mark_str != "" and mark_str != "nan" and mark_str != "0":
+                            try:
+                                clean_mark = float(mark_str.replace('s', '').replace('m', '').strip())
+                                parsed_history.append({"Year": year, "Mark": clean_mark})
+                            except ValueError:
+                                continue
+                                
+        if not parsed_history: return None
+        res_df = pd.DataFrame(parsed_history)
+        if "jump" in target_discipline:
+            res_df = res_df.groupby("Year", as_index=False).max()
+        else:
+            res_df = res_df.groupby("Year", as_index=False).min()
+        return res_df.sort_values(by="Year")
     except Exception:
         return None
 
@@ -75,89 +141,4 @@ def calculate_ape_points(mark, event, gender, current_age, season_year):
         else: pts = 1000 - ((mark - 56.00) * 30) if mark > 56.00 else 1000
     else:
         pts = (mark / 6.50) * 1000 if mark < 6.50 else 1000
-        
     return int(min(max(pts, 0), 1000))
-if "authenticated" not in st.session_state:
-    st.session_state["authenticated"] = False
-    st.session_state["role"] = None
-    st.session_state["username"] = None
-
-if not st.session_state["authenticated"]:
-    st.title("🔒 S-ACE Cloud Performance Portal")
-    st.subheader("Row-Level Secured Portal Authorization")
-    username = st.text_input("Athlete ID / Coaching Code")
-    password = st.text_input("Access Security Password", type="password")
-    if st.button("Log In"):
-        if username in USER_DB and USER_DB[username]["pass"] == password:
-            st.session_state["authenticated"] = True
-            st.session_state["role"] = USER_DB[username]["role"]
-            st.session_state["username"] = username
-            st.session_state["name"] = USER_DB[username]["name"]
-            st.rerun()
-        else: st.error("Access Denied.")
-else:
-    user_info = USER_DB[st.session_state["username"]]
-    st.sidebar.title(f"User: {st.session_state['name']}")
-    st.sidebar.write(f"Access Role: **{st.session_state['role'].upper()}**")
-    if st.sidebar.button("Logout"):
-        st.session_state["authenticated"] = False
-        st.session_state["role"] = None
-        st.session_state["username"] = None
-        st.rerun()
-
-    if st.session_state["role"] == "coach":
-        st.title("📈 Acute-to-Chronic Workload Ratio (ACWR) Monitor")
-        fig, ax = plt.subplots(figsize=(10, 2.2))
-        dates = [f"2026-10-{i}" for i in range(13, 31)] + [f"2026-11-0{i}" for i in range(1, 10)]
-        ratios = [1.0, 1.0, 0.99, 1.0, 0.98, 0.96, 0.98, 0.92, 0.99, 1.01, 1.0, 0.96, 0.97, 1.01, 0.94, 0.89, 0.84, 0.80, 0.78, 0.85, 0.86, 0.79]
-        ax.plot(dates[:len(ratios)], ratios, color="purple", marker="o", label="Current ACWR Trend", linewidth=2)
-        ax.axhline(1.5, color="red", linestyle="--", label="High Risk Boundary (1.5)")
-        ax.axhline(1.0, color="green", linestyle=":", label="Optimal Balance (1.0)")
-        ax.set_ylim(0.5, 1.7)
-        ax.set_ylabel("Workload Ratio")
-        ax.legend(loc="upper left")
-        plt.xticks(rotation=15)
-        st.pyplot(fig)
-
-        st.subheader("S-ACE Track Program Roster")
-        roster_list = [{"User ID": uid, "Athlete Name": det["name"], "Gender": det["gender"].capitalize(), "Current Age": det["current_age"], "Grade": det["grade"]} for uid, det in USER_DB.items() if det["role"] == "athlete"]
-        st.dataframe(pd.DataFrame(roster_list), use_container_width=True)
-
-        st.markdown("---")
-        st.header("🔍 Individual Athlete Explorer & Deep-Dive Metrics")
-        athlete_names_mapping = {det["name"]: uid for uid, det in USER_DB.items() if det["role"] == "athlete"}
-        selected_name = st.selectbox("Select an Athlete Profile to Deep-Dive Into:", sorted(list(athlete_names_mapping.keys())))
-        
-        if selected_name:
-            tgt_uid = athlete_names_mapping[selected_name]
-            tgt_info = USER_DB[tgt_uid]
-            st.subheader(f"📊 Personal Ledger Portfolio: {selected_name}")
-            
-            # 🛠️ LIVE BACKEND DEBUG DIAGNOSTIC STREAM 
-            st.write("### 🎛️ Live Google API Connection Diagnostics")
-            gc = get_gspread_client()
-            if gc is not None:
-                try:
-                    sheet = gc.open_by_key(RACE_RESULTS_SPREADSHEET_ID).worksheet("Form Responses 1")
-                    raw_grid = sheet.get_all_values()
-                    
-                    st.info(f"📁 **Total Rows Found in Sheet Tab:** {len(raw_grid)}")
-                    if len(raw_grid) > 0:
-                        st.write(f"🏷️ **Raw Column Headers Discovered (Row 1):** `{raw_grid[0]}`")
-                        
-                        # Find indices
-                        headers_lower = [str(h).strip().lower() for h in raw_grid[0]]
-                        name_idx = headers_lower.index('athlete name') if 'athlete name' in headers_lower else -1
-                        date_idx = headers_lower.index('date') if 'date' in headers_lower else -1
-                        
-                        st.write(f"📍 **Index Placement Coordinates:** `Athlete Name Column: {name_idx}` | `Date Column: {date_idx}`")
-                        
-                        # Look for matches
-                        matches = [r for r in raw_grid[1:] if len(r) > name_idx and str(r[name_idx]).strip().lower() == selected_name.lower().strip()]
-                        st.warning(f"🎯 **Filtered Athlete Rows Extracted for {selected_name}:** {len(matches)}")
-                        if len(matches) > 0:
-                            st.write(f"📝 **Sample Captured Row:** `{matches[0]}`")
-                except Exception as e:
-                    st.error(f"❌ Diagnostic Pipeline Interrupted: {str(e)}")
-            else:
-                st.error("❌ Google Service Account authentication key missing in Secrets Panel.")
