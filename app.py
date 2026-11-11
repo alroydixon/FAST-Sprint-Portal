@@ -55,64 +55,66 @@ def get_gspread_client():
         return None
 
 @st.cache_data(ttl=15)
-def fetch_athlete_live_track_data(athlete_name, event_type):
+def get_raw_sheet_grid():
     gc = get_gspread_client()
-    if gc is None: return None
+    if gc is None: return []
     try:
         sheet = gc.open_by_key(RACE_RESULTS_SPREADSHEET_ID).worksheet("Form Responses 1")
-        raw_grid = sheet.get_all_values()
-        if not raw_grid or len(raw_grid) < 2: return None
+        return sheet.get_all_values()
+    except Exception as e:
+        return [["ERROR", str(e)]]
 
-        headers = [str(h).strip().lower() for h in raw_grid[0]]
-        data_rows = raw_grid[1:]
+def fetch_athlete_live_track_data(athlete_name, event_type):
+    raw_grid = get_raw_sheet_grid()
+    if not raw_grid or len(raw_grid) < 2 or raw_grid[0][0] == "ERROR": return None
 
-        name_idx = next((i for i, h in enumerate(headers) if "athlete" in h or "name" in h), -1)
-        date_idx = next((i for i, h in enumerate(headers) if "date" in h or "timestamp" in h), -1)
-        if name_idx == -1: return None
+    headers = [str(h).strip().lower() for h in raw_grid[0]]
+    data_rows = raw_grid[1:]
 
-        target_kw = "100" if "100M" in event_type else ("200" if "200M" in event_type else ("400" if "400M" in event_type else "jump"))
-        event_indices = [i for i, h in enumerate(headers) if target_kw in h]
-        if not event_indices: return None
+    name_idx = next((i for i, h in enumerate(headers) if "athlete" in h or "name" in h), -1)
+    date_idx = next((i for i, h in enumerate(headers) if "date" in h or "timestamp" in h), -1)
+    if name_idx == -1: return None
 
-        parsed_history = []
-        clean_search = athlete_name.lower().strip()
+    target_kw = "100" if "100M" in event_type else ("200" if "200M" in event_type else ("400" if "400M" in event_type else "jump"))
+    event_indices = [i for i, h in enumerate(headers) if target_kw in h]
+    if not event_indices: return None
 
-        for row in data_rows:
-            if len(row) <= name_idx: continue
-            row_name = str(row[name_idx]).lower().strip()
-            if clean_search == row_name or clean_search in row_name:
-                year = 2026
-                if date_idx != -1 and len(row) > date_idx:
-                    year_match = re.search(r'20\d{2}', str(row[date_idx]))
-                    if year_match:
-                        year = int(year_match.group())
+    parsed_history = []
+    clean_search = athlete_name.lower().strip()
 
-                for idx in event_indices:
-                    if len(row) <= idx: continue
-                    val_str = str(row[idx]).lower().replace('s', '').replace('m', '').replace(',', '.').strip()
-                    if val_str and val_str not in ["nan", "0", "0.0", "-"]:
-                        try:
-                            mark = float(val_str)
-                            if mark > 0:
-                                parsed_history.append({"Year": year, "Mark": mark})
-                        except ValueError:
-                            continue
+    for row in data_rows:
+        if len(row) <= name_idx: continue
+        row_name = str(row[name_idx]).lower().strip()
+        if clean_search == row_name or clean_search in row_name:
+            year = 2026
+            if date_idx != -1 and len(row) > date_idx:
+                year_match = re.search(r'20\d{2}', str(row[date_idx]))
+                if year_match:
+                    year = int(year_match.group())
 
-        if not parsed_history: return None
-        res_df = pd.DataFrame(parsed_history)
-        if "jump" in target_kw:
-            res_df = res_df.groupby("Year", as_index=False).max()
-        else:
-            res_df = res_df.groupby("Year", as_index=False).min()
-        return res_df.sort_values(by="Year")
-    except Exception:
-        return None
+            for idx in event_indices:
+                if len(row) <= idx: continue
+                val_str = str(row[idx]).lower().replace('s', '').replace('m', '').replace(',', '.').strip()
+                if val_str and val_str not in ["nan", "0", "0.0", "-"]:
+                    try:
+                        mark = float(val_str)
+                        if mark > 0:
+                            parsed_history.append({"Year": year, "Mark": mark})
+                    except ValueError:
+                        continue
+
+    if not parsed_history: return None
+    res_df = pd.DataFrame(parsed_history)
+    if "jump" in target_kw:
+        res_df = res_df.groupby("Year", as_index=False).max()
+    else:
+        res_df = res_df.groupby("Year", as_index=False).min()
+    return res_df.sort_values(by="Year")
 
 def calculate_ape_points(mark, event, gender, current_age, season_year):
     if pd.isna(mark) or mark <= 0: return 0
     years_back = 2026 - season_year
     historical_age = current_age - years_back
-    scale_tier = "U20" if historical_age >= 18 else ("U18" if historical_age >= 16 else "U16")
     
     if "100" in event:
         if gender == "boy": pts = 1000 - ((mark - 10.50) * 150) if mark > 10.50 else 1000
@@ -205,6 +207,14 @@ else:
                     st.pyplot(fig2)
                 else:
                     st.info("📅 No marks found for this athlete in the selected event.")
+
+                with st.expander("🛠️ Debug: Inspect Raw Google Sheet Data"):
+                    grid = get_raw_sheet_grid()
+                    st.write(f"**Total rows read:** {len(grid)}")
+                    if grid:
+                        st.write("**Row 1 Headers:**", grid[0])
+                        if len(grid) > 1:
+                            st.write("**Row 2 Sample:**", grid[1])
 
             with col_b:
                 st.write("#### 🏋️ Strategic Gym Deployment Profile")
