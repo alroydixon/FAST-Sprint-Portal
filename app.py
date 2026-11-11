@@ -45,9 +45,13 @@ WELLNESS_SPREADSHEET_ID = "1P-h0UJgYITHJjgNybBnNopopeA51zDYIUdmPfyZuA8o"
 RACE_RESULTS_SPREADSHEET_ID = "1HOJfs2qz-oXPC73JZ0YHuiPFxvsyv3ekgOGl3I-TmkI"
 
 def get_gspread_client():
+    info = dict(st.secrets["gcp_service_account"])
+    info["auth_uri"] = "https://google.com"
+    info["token_uri"] = "https://googleapis.com"
     scope = ["https://googleapis.com", "https://googleapis.com"]
-    creds = Credentials.from_service_account_info(dict(st.secrets["gcp_service_account"]), scopes=scope)
+    creds = Credentials.from_service_account_info(info, scopes=scope)
     return gspread.authorize(creds)
+
 
 @st.cache_data(ttl=15)
 def get_raw_sheet_grid():
