@@ -47,6 +47,7 @@ USER_DB = {
 
 WELLNESS_SPREADSHEET_ID = "1P-h0UJgYITHJjgNybBnNopopeA51zDYIUdmPfyZuA8o"
 RACE_RESULTS_SPREADSHEET_ID = "1HOJfs2qz-oXPC73JZ0YHuiPFxvsyv3ekgOGl3I-TmkI"
+
 @st.cache_data(ttl=3000)
 def get_google_access_token():
     info = dict(st.secrets["gcp_service_account"])
@@ -67,7 +68,6 @@ def get_google_access_token():
     req = urllib.request.Request("https://googleapis.com", data=data, method="POST")
     with urllib.request.urlopen(req, timeout=15) as resp:
         return json.loads(resp.read().decode("utf-8"))["access_token"]
-
 def drive_list_spreadsheets():
     token = get_google_access_token()
     q = urllib.parse.quote("mimeType='application/vnd.google-apps.spreadsheet' and trashed=false")
@@ -83,7 +83,7 @@ def get_sheet_first_tab_name(spreadsheet_id):
     with urllib.request.urlopen(req, timeout=15) as resp:
         sheets = json.loads(resp.read().decode("utf-8")).get("sheets", [])
         titles = [s["properties"]["title"] for s in sheets]
-        return "Form Responses 1" if "Form Responses 1" in titles else titles
+        return "Form Responses 1" if "Form Responses 1" in titles else next(iter(titles), "Sheet1")
 
 def sheets_api_get_values(spreadsheet_id, tab_name=None):
     token = get_google_access_token()
@@ -117,7 +117,7 @@ def get_raw_sheet_grid():
         files = drive_list_spreadsheets()
         if not files:
             return [["ERROR", "0 spreadsheets visible in Drive. Check Share settings."]]
-        target = next((f for f in files if "race" in f["name"].lower() or "stellenbosch" in f["name"].lower()), files)
+        target = next((f for f in files if "race" in f["name"].lower() or "stellenbosch" in f["name"].lower()), next(iter(files)))
         return sheets_api_get_values(target["id"])
     except urllib.error.HTTPError as e:
         err_body = e.read().decode("utf-8", errors="ignore")
@@ -127,10 +127,13 @@ def get_raw_sheet_grid():
 
 def fetch_athlete_live_track_data(athlete_name, event_type):
     raw_grid = get_raw_sheet_grid()
-    if not raw_grid or len(raw_grid) < 2 or raw_grid == "ERROR":
+    if not raw_grid or len(raw_grid) < 2:
+        return None
+    first_row = next(iter(raw_grid))
+    if next(iter(first_row), "") == "ERROR":
         return None
 
-    headers = [str(h).strip().lower() for h in raw_grid]
+    headers = [str(h).strip().lower() for h in first_row]
     data_rows = raw_grid[1:]
 
     name_idx = next((i for i, h in enumerate(headers) if "athlete" in h or "name" in h), -1)
@@ -242,6 +245,7 @@ else:
         plt.xticks(rotation=15)
         st.pyplot(fig)
         st.success("✅ Baseline Balanced: Current squad workload acceleration index is safe at 0.79.")
+
         st.subheader("S-ACE Track Program Roster")
         roster_list = [{"User ID": uid, "Athlete Name": det["name"], "Gender": det["gender"].capitalize(), "Current Age": det["current_age"], "Grade": det["grade"]} for uid, det in USER_DB.items() if det["role"] == "athlete"]
         st.dataframe(pd.DataFrame(roster_list), use_container_width=True)
@@ -283,7 +287,7 @@ else:
                     grid = get_raw_sheet_grid()
                     st.write(f"**Total rows read:** {len(grid)}")
                     if grid:
-                        st.write("**Row 1 Headers:**", grid[0])
+                        st.write("**Row 1 Headers:**", next(iter(grid)))
                         if len(grid) > 1:
                             st.write("**Row 2 Sample:**", grid[1])
             with col_b:
@@ -302,10 +306,10 @@ else:
                     w_id = w_file["id"] if w_file else WELLNESS_SPREADSHEET_ID
                     w_rows = sheets_api_get_values(w_id)
                     if len(w_rows) > 1:
-                        w_headers = w_rows[0]
+                        w_headers = next(iter(w_rows))
                         padded = [r + [""] * (len(w_headers) - len(r)) for r in w_rows[1:]]
                         full_df = pd.DataFrame(padded, columns=w_headers)
-                        name_col = next((c for c in w_headers if "name" in c.lower()), w_headers[0])
+                        name_col = next((c for c in w_headers if "name" in c.lower()), next(iter(w_headers)))
                         filtered_df = full_df[full_df[name_col].astype(str).str.lower().str.strip() == selected_name.lower().strip()]
                         if not filtered_df.empty:
                             st.dataframe(filtered_df, use_container_width=True)
