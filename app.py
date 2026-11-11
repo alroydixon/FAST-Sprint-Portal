@@ -203,13 +203,14 @@ else:
                 else:
                     st.info("📅 No marks found for this athlete in the selected event.")
 
-                with st.expander("🛠️ Debug: Inspect Raw Google Sheet Data"):
-    grid = get_raw_sheet_grid()
-    st.write(f"**Total rows read:** {len(grid)}")
-    if grid:
-        st.write("**Row 1 Headers:**", grid[0])
-        if len(grid) > 1:
-            st.write("**Row 2 Sample:**", grid[1])
+                                with st.expander("🛠️ Debug: Inspect Raw Google Sheet Data"):
+                    grid = get_raw_sheet_grid()
+                    st.write(f"**Total rows read:** {len(grid)}")
+                    if grid:
+                        st.write("**Row 1 Headers:**", grid[0])
+                        if len(grid) > 1:
+                            st.write("**Row 2 Sample:**", grid[1])
+
 
             with col_b:
                 st.write("#### 🏋️ Strategic Gym Deployment Profile")
