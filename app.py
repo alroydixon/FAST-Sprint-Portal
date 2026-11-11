@@ -3,8 +3,11 @@ import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 from datetime import datetime
-from google.oauth2 import service_account
-import gspread
+import urllib.request
+import urllib.parse
+import json
+import time
+import jwt
 import re
 
 st.set_page_config(page_title="S-ACE Cloud Performance Portal", layout="wide", page_icon="🏃‍♂️")
@@ -44,38 +47,53 @@ USER_DB = {
 WELLNESS_SPREADSHEET_ID = "1P-h0UJgYITHJjgNybBnNopopeA51zDYIUdmPfyZuA8o"
 RACE_RESULTS_SPREADSHEET_ID = "1HOJfs2qz-oXPC73JZ0YHuiPFxvsyv3ekgOGl3I-TmkI"
 
-def get_gspread_client():
+@st.cache_data(ttl=3000)
+def get_google_access_token():
     info = dict(st.secrets["gcp_service_account"])
-    clean_info = {
-        "type": "service_account",
-        "project_id": info["project_id"],
-        "private_key_id": info["private_key_id"],
-        "private_key": info["private_key"],
-        "client_email": info["client_email"],
-        "client_id": info["client_id"],
-        "auth_uri": "https://google.com",
-        "token_uri": "https://googleapis.com",
+    now = int(time.time())
+    payload = {
+        "iss": info["client_email"],
+        "scope": "https://googleapis.com https://googleapis.com",
+        "aud": "https://googleapis.com",
+        "iat": now,
+        "exp": now + 3600,
     }
-    creds = service_account.Credentials.from_service_account_info(
-        clean_info,
-        scopes=["https://googleapis.com", "https://googleapis.com"],
+    private_key = info["private_key"].replace("\\n", "\n")
+    assertion = jwt.encode(payload, private_key, algorithm="RS256")
+    data = urllib.parse.urlencode({
+        "grant_type": "urn:ietf:params:oauth:grant-type:jwt-bearer",
+        "assertion": assertion,
+    }).encode("utf-8")
+    req = urllib.request.Request("https://googleapis.com", data=data, method="POST")
+    with urllib.request.urlopen(req, timeout=15) as resp:
+        return json.loads(resp.read().decode("utf-8"))["access_token"]
+
+def sheets_api_get_values(spreadsheet_id, tab_name="Form Responses 1"):
+    token = get_google_access_token()
+    encoded_range = urllib.parse.quote(f"'{tab_name}'!A1:ZZ2000")
+    url = f"https://googleapis.com{spreadsheet_id}/values/{encoded_range}"
+    req = urllib.request.Request(url, headers={"Authorization": f"Bearer {token}"})
+    with urllib.request.urlopen(req, timeout=15) as resp:
+        return json.loads(resp.read().decode("utf-8")).get("values", [])
+
+def sheets_api_append_row(spreadsheet_id, row_values, tab_name="Form Responses 1"):
+    token = get_google_access_token()
+    encoded_range = urllib.parse.quote(f"'{tab_name}'!A1")
+    url = f"https://googleapis.com{spreadsheet_id}/values/{encoded_range}:append?valueInputOption=USER_ENTERED"
+    body = json.dumps({"values": [row_values]}).encode("utf-8")
+    req = urllib.request.Request(
+        url,
+        data=body,
+        headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"},
+        method="POST",
     )
-    return gspread.authorize(creds)
+    with urllib.request.urlopen(req, timeout=15) as resp:
+        return json.loads(resp.read().decode("utf-8"))
 
 @st.cache_data(ttl=15)
 def get_raw_sheet_grid():
     try:
-        gc = get_gspread_client()
-        files = gc.list_spreadsheet_files()
-        if not files:
-            return [["ERROR", "Service account sees 0 spreadsheets in Google Drive. Verify sharing settings."]]
-
-        target = next((f for f in files if "race" in f["name"].lower() or "stellenbosch" in f["name"].lower()), files[0])
-        sh = gc.open_by_key(target["id"])
-
-        ws_names = [w.title for w in sh.worksheets()]
-        ws = sh.worksheet("Form Responses 1") if "Form Responses 1" in ws_names else sh.get_worksheet(0)
-        return ws.get_all_values()
+        return sheets_api_get_values(RACE_RESULTS_SPREADSHEET_ID, "Form Responses 1")
     except Exception as e:
         return [["ERROR", f"{type(e).__name__}: {repr(e)}"]]
 
@@ -252,17 +270,12 @@ else:
                 
                 st.write("#### 📋 Logged Practice Feed Logs (Live Filtered rows)")
                 try:
-                    gc = get_gspread_client()
-                    files = gc.list_spreadsheet_files()
-                    wellness_target = next((f for f in files if "wellness" in f["name"].lower()), None)
-                    wellness_id = wellness_target["id"] if wellness_target else WELLNESS_SPREADSHEET_ID
-                    sh_w = gc.open_by_key(wellness_id)
-                    ws_w_names = [w.title for w in sh_w.worksheets()]
-                    ws_w = sh_w.worksheet("Form Responses 1") if "Form Responses 1" in ws_w_names else sh_w.get_worksheet(0)
-                    sheet_data = ws_w.get_all_records()
-                    if sheet_data:
-                        full_df = pd.DataFrame(sheet_data)
-                        name_col = "Name" if "Name" in full_df.columns else ("Athlete Name" if "Athlete Name" in full_df.columns else full_df.columns[0])
+                    w_rows = sheets_api_get_values(WELLNESS_SPREADSHEET_ID, "Form Responses 1")
+                    if len(w_rows) > 1:
+                        w_headers = w_rows[0]
+                        padded = [r + [""] * (len(w_headers) - len(r)) for r in w_rows[1:]]
+                        full_df = pd.DataFrame(padded, columns=w_headers)
+                        name_col = next((c for c in w_headers if "name" in c.lower()), w_headers[0])
                         filtered_df = full_df[full_df[name_col].astype(str).str.lower().str.strip() == selected_name.lower().strip()]
                         if not filtered_df.empty:
                             st.dataframe(filtered_df, use_container_width=True)
@@ -300,15 +313,12 @@ else:
                 if st.form_submit_button("Submit Workout Metrics"):
                     calculated_au = duration * rpe
                     try:
-                        gc = get_gspread_client()
-                        files = gc.list_spreadsheet_files()
-                        wellness_target = next((f for f in files if "wellness" in f["name"].lower()), None)
-                        wellness_id = wellness_target["id"] if wellness_target else WELLNESS_SPREADSHEET_ID
-                        sh_w = gc.open_by_key(wellness_id)
-                        ws_w_names = [w.title for w in sh_w.worksheets()]
-                        ws_w = sh_w.worksheet("Form Responses 1") if "Form Responses 1" in ws_w_names else sh_w.get_worksheet(0)
                         timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                        ws_w.append_row([timestamp, st.session_state["name"], duration, rpe, calculated_au, notes])
+                        sheets_api_append_row(
+                            WELLNESS_SPREADSHEET_ID,
+                            [timestamp, st.session_state["name"], duration, rpe, calculated_au, notes],
+                            "Form Responses 1",
+                        )
                         st.success(f"💪 Workout Logged Live to Sheets Tab! Workload Score: {calculated_au} AU.")
                     except Exception as e:
                         st.error(f"Sheet Append Interrupted: {repr(e)}")
