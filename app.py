@@ -46,19 +46,14 @@ WELLNESS_SPREADSHEET_ID = "1P-h0UJgYITHJjgNybBnNopopeA51zDYIUdmPfyZuA8o"
 RACE_RESULTS_SPREADSHEET_ID = "1HOJfs2qz-oXPC73JZ0YHuiPFxvsyv3ekgOGl3I-TmkI"
 
 def get_gspread_client():
-    try:
-        info_dict = json.loads(st.secrets["raw_json_string"])
-        scope = ["https://googleapis.com", "https://googleapis.com"]
-        creds = Credentials.from_service_account_info(info_dict, scopes=scope)
-        return gspread.authorize(creds)
-    except Exception:
-        return None
+    scope = ["https://googleapis.com", "https://googleapis.com"]
+    creds = Credentials.from_service_account_info(dict(st.secrets["gcp_service_account"]), scopes=scope)
+    return gspread.authorize(creds)
 
 @st.cache_data(ttl=15)
 def get_raw_sheet_grid():
-    gc = get_gspread_client()
-    if gc is None: return []
     try:
+        gc = get_gspread_client()
         sheet = gc.open_by_key(RACE_RESULTS_SPREADSHEET_ID).worksheet("Form Responses 1")
         return sheet.get_all_values()
     except Exception as e:
@@ -209,12 +204,12 @@ else:
                     st.info("📅 No marks found for this athlete in the selected event.")
 
                 with st.expander("🛠️ Debug: Inspect Raw Google Sheet Data"):
-                    grid = get_raw_sheet_grid()
-                    st.write(f"**Total rows read:** {len(grid)}")
-                    if grid:
-                        st.write("**Row 1 Headers:**", grid[0])
-                        if len(grid) > 1:
-                            st.write("**Row 2 Sample:**", grid[1])
+    grid = get_raw_sheet_grid()
+    st.write(f"**Total rows read:** {len(grid)}")
+    if grid:
+        st.write("**Row 1 Headers:**", grid[0])
+        if len(grid) > 1:
+            st.write("**Row 2 Sample:**", grid[1])
 
             with col_b:
                 st.write("#### 🏋️ Strategic Gym Deployment Profile")
