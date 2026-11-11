@@ -3,6 +3,7 @@ import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 from datetime import datetime
+from google.oauth2 import service_account
 import gspread
 import re
 
@@ -45,9 +46,21 @@ RACE_RESULTS_SPREADSHEET_ID = "1HOJfs2qz-oXPC73JZ0YHuiPFxvsyv3ekgOGl3I-TmkI"
 
 def get_gspread_client():
     info = dict(st.secrets["gcp_service_account"])
-    info["auth_uri"] = "https://google.com"
-    info["token_uri"] = "https://googleapis.com"
-    return gspread.service_account_from_dict(info)
+    clean_info = {
+        "type": "service_account",
+        "project_id": info["project_id"],
+        "private_key_id": info["private_key_id"],
+        "private_key": info["private_key"],
+        "client_email": info["client_email"],
+        "client_id": info["client_id"],
+        "auth_uri": "https://google.com",
+        "token_uri": "https://googleapis.com",
+    }
+    creds = service_account.Credentials.from_service_account_info(
+        clean_info,
+        scopes=["https://googleapis.com", "https://googleapis.com"],
+    )
+    return gspread.authorize(creds)
 
 @st.cache_data(ttl=15)
 def get_raw_sheet_grid():
