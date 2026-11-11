@@ -3,7 +3,6 @@ import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 from datetime import datetime
-from google.oauth2.service_account import Credentials
 import gspread
 import re
 
@@ -48,10 +47,7 @@ def get_gspread_client():
     info = dict(st.secrets["gcp_service_account"])
     info["auth_uri"] = "https://google.com"
     info["token_uri"] = "https://googleapis.com"
-    scope = ["https://googleapis.com", "https://googleapis.com"]
-    creds = Credentials.from_service_account_info(info, scopes=scope)
-    return gspread.authorize(creds)
-
+    return gspread.service_account_from_dict(info)
 
 @st.cache_data(ttl=15)
 def get_raw_sheet_grid():
@@ -68,12 +64,7 @@ def get_raw_sheet_grid():
         ws = sh.worksheet("Form Responses 1") if "Form Responses 1" in ws_names else sh.get_worksheet(0)
         return ws.get_all_values()
     except Exception as e:
-        try:
-            gc = get_gspread_client()
-            visible = gc.list_spreadsheet_files()
-            return [["ERROR", f"{type(e).__name__}: {repr(e)}", "Visible files:", visible]]
-        except Exception as e2:
-            return [["ERROR", f"{type(e).__name__}: {repr(e)}", f"List error: {repr(e2)}"]]
+        return [["ERROR", f"{type(e).__name__}: {repr(e)}"]]
 
 def fetch_athlete_live_track_data(athlete_name, event_type):
     raw_grid = get_raw_sheet_grid()
