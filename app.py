@@ -6,18 +6,15 @@ from datetime import datetime
 from google.oauth2.service_account import Credentials
 import gspread
 import json
+import re
 
-# 1. Page Configuration & Aesthetic Architecture
 st.set_page_config(page_title="S-ACE Cloud Performance Portal", layout="wide", page_icon="🏃‍♂️")
 
-# 2. Complete 28-Athlete Roster Matrix (Row-Level Security Authentication Registry)
 USER_DB = {
     "coaching_staff": {"pass": "sace_elite_2027", "role": "coach", "name": "Head Coach", "gender": "boy", "current_age": 99, "grade": "Staff"},
-    # Grade 12
     "hayden.c": {"pass": "cornelius1269", "role": "athlete", "name": "Haydan-Reese Cornelius", "gender": "girl", "current_age": 18, "grade": 12},
     "chanlynne.b": {"pass": "brown1241", "role": "athlete", "name": "Chanlynne Brown", "gender": "girl", "current_age": 18, "grade": 12},
     "ashrin.f": {"pass": "flink1176", "role": "athlete", "name": "Ashrin Flink", "gender": "boy", "current_age": 18, "grade": 12},
-    # Grade 11
     "clayton.vw": {"pass": "vanwyk1062", "role": "athlete", "name": "Clayton van Wyk", "gender": "boy", "current_age": 18, "grade": 11},
     "charne.k": {"pass": "kayser1198", "role": "athlete", "name": "Charne Kayser", "gender": "girl", "current_age": 17, "grade": 11},
     "mitchell.m": {"pass": "maarman2115", "role": "athlete", "name": "Mitchell Maarman", "gender": "boy", "current_age": 17, "grade": 11},
@@ -25,7 +22,6 @@ USER_DB = {
     "sharon.s": {"pass": "september1261", "role": "athlete", "name": "Sharonay September", "gender": "girl", "current_age": 17, "grade": 11},
     "kim.c": {"pass": "cloete1300", "role": "athlete", "name": "Kim Cloete", "gender": "girl", "current_age": 17, "grade": 11},
     "alicia.f": {"pass": "festus1224", "role": "athlete", "name": "Alicia Festus", "gender": "girl", "current_age": 18, "grade": 11},
-    # Grade 10
     "melissa.m": {"pass": "mahone1264", "role": "athlete", "name": "Melissa Mhone", "gender": "girl", "current_age": 16, "grade": 10},
     "shinique.s": {"pass": "samuels2639", "role": "athlete", "name": "Shinique Samuels", "gender": "girl", "current_age": 16, "grade": 10},
     "cairo.dk": {"pass": "deklerk1075", "role": "athlete", "name": "Cairo De Klerk", "gender": "boy", "current_age": 16, "grade": 10},
@@ -34,7 +30,6 @@ USER_DB = {
     "kevin.l": {"pass": "loumouamou1139", "role": "athlete", "name": "Kevin Loumouamou", "gender": "boy", "current_age": 15, "grade": 10},
     "elmira.d": {"pass": "doissen1215", "role": "athlete", "name": "Elmira Doysen", "gender": "girl", "current_age": 16, "grade": 10},
     "bea.dv": {"pass": "devilliers2738", "role": "athlete", "name": "Bea De Villiers", "gender": "girl", "current_age": 16, "grade": 10},
-    # Grade 9
     "tyler.vn": {"pass": "vanneel1189", "role": "athlete", "name": "Tyler Van Neel", "gender": "boy", "current_age": 15, "grade": 9},
     "local.lp": {"pass": "poole1118", "role": "athlete", "name": "Liam Poole", "gender": "boy", "current_age": 15, "grade": 9},
     "tamzin.a": {"pass": "amos2801", "role": "athlete", "name": "Tamzin Amos", "gender": "boy", "current_age": 15, "grade": 9},
@@ -43,7 +38,6 @@ USER_DB = {
     "amber.n": {"pass": "nel1251", "role": "athlete", "name": "Amber Nel", "gender": "girl", "current_age": 15, "grade": 9},
     "faith.b": {"pass": "barbery3053", "role": "athlete", "name": "Faith Barbery", "gender": "girl", "current_age": 15, "grade": 9},
     "tarryn.s": {"pass": "simonse1304", "role": "athlete", "name": "Tarryn Simonse", "gender": "girl", "current_age": 16, "grade": 9},
-    # Grade 8
     "jenique.p": {"pass": "prins1342", "role": "athlete", "name": "Jenique Prins", "gender": "girl", "current_age": 14, "grade": 8},
     "damilleo.a": {"pass": "andoones1114", "role": "athlete", "name": "Damilleo Andoones", "gender": "boy", "current_age": 14, "grade": 8}
 }
@@ -60,7 +54,6 @@ def get_gspread_client():
     except Exception:
         return None
 
-# Case-Insensitive Horizontal Matrix Processing Engine
 @st.cache_data(ttl=15)
 def fetch_athlete_live_track_data(athlete_name, event_type):
     gc = get_gspread_client()
@@ -70,7 +63,6 @@ def fetch_athlete_live_track_data(athlete_name, event_type):
         raw_grid = sheet.get_all_values()
         if not raw_grid: return None
         
-        # Standardize target substrings to cleanly locate sections down the page
         target_keyword = "100m" if "100M" in event_type else ("200m" if "200M" in event_type else ("400m" if "400M" in event_type else "longjump"))
         
         header_row_idx = -1
@@ -105,8 +97,11 @@ def fetch_athlete_live_track_data(athlete_name, event_type):
                     col_clean = str(col_name).lower().replace(" ", "").strip()
                     if "week:" in col_clean:
                         try:
-                            # Extract 2-digit year prefix from start of string cleanly (e.g. "23week:04" -> 2023)
-                            year = 2000 + int(col_clean[:2])
+                            year_match = re.search(r'\d+', col_clean)
+                            if year_match:
+                                year = 2000 + int(year_match.group()[:2])
+                            else:
+                                year = 2026
                         except Exception:
                             year = 2026
                             
@@ -208,7 +203,6 @@ else:
                 st.write(f"**Gender:** {tgt_info['gender'].capitalize()} | **Current Age:** {tgt_info['current_age']} | **Grade:** {tgt_info['grade']}")
                 event_choice = st.selectbox(f"Filter Event Discipline Metrics for {tgt_info['name']}:", ["100M Sprints", "200M Sprints", "400M Sprints", "Long Jump"])
                 
-                # Fetch Real-Time Data from Google Sheet
                 live_df = fetch_athlete_live_track_data(selected_name, event_choice)
                 
                 if live_df is not None and not live_df.empty:
@@ -225,7 +219,7 @@ else:
                     ax2.grid(True, linestyle=":", alpha=0.6)
                     st.pyplot(fig2)
                 else:
-                    st.info(f"📅 Live Google Sheets Data Stream Active. Select an entry column field above to query cells.")
+                    st.info("📅 Live Google Sheets Data Stream Active. Select an entry column field above to query cells.")
 
             with col_b:
                 st.write("#### 🏋️ Strategic Gym Deployment Profile")
@@ -245,8 +239,6 @@ else:
                             else: st.caption(f"No workout logs captured for {selected_name} yet.")
                         else: st.caption("No wellness rows logged.")
                     except Exception: st.caption("Awaiting sheet cell synchronization updates.")
-
-    # 🔴 SECURED ATHLETE PORTAL VIEW
     else:
         st.title(f"🏃‍♂️ Performance & Wellness Hub: {st.session_state['name']}")
         c1, c2 = st.columns(2)
