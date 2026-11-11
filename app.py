@@ -53,10 +53,23 @@ def get_gspread_client():
 def get_raw_sheet_grid():
     try:
         gc = get_gspread_client()
-        sheet = gc.open_by_key(RACE_RESULTS_SPREADSHEET_ID).worksheet("Form Responses 1")
-        return sheet.get_all_values()
+        files = gc.list_spreadsheet_files()
+        if not files:
+            return [["ERROR", "Service account sees 0 spreadsheets in Google Drive. Verify sharing settings."]]
+
+        target = next((f for f in files if "race" in f["name"].lower() or "stellenbosch" in f["name"].lower()), files[0])
+        sh = gc.open_by_key(target["id"])
+
+        ws_names = [w.title for w in sh.worksheets()]
+        ws = sh.worksheet("Form Responses 1") if "Form Responses 1" in ws_names else sh.get_worksheet(0)
+        return ws.get_all_values()
     except Exception as e:
-        return [["ERROR", str(e)]]
+        try:
+            gc = get_gspread_client()
+            visible = gc.list_spreadsheet_files()
+            return [["ERROR", f"{type(e).__name__}: {repr(e)}", "Visible files:", visible]]
+        except Exception as e2:
+            return [["ERROR", f"{type(e).__name__}: {repr(e)}", f"List error: {repr(e2)}"]]
 
 def fetch_athlete_live_track_data(athlete_name, event_type):
     raw_grid = get_raw_sheet_grid()
@@ -220,7 +233,6 @@ else:
                         st.write("**Row 1 Headers:**", grid[0])
                         if len(grid) > 1:
                             st.write("**Row 2 Sample:**", grid[1])
-
             with col_b:
                 st.write("#### 🏋️ Strategic Gym Deployment Profile")
                 if tgt_uid in ["clayton.vw", "mitchell.m", "lezario.m", "ashrin.f"]:
@@ -233,10 +245,17 @@ else:
                 st.write("#### 📋 Logged Practice Feed Logs (Live Filtered rows)")
                 try:
                     gc = get_gspread_client()
-                    sheet_data = gc.open_by_key(WELLNESS_SPREADSHEET_ID).worksheet("Session_RPE_Logs").get_all_records()
+                    files = gc.list_spreadsheet_files()
+                    wellness_target = next((f for f in files if "wellness" in f["name"].lower()), None)
+                    wellness_id = wellness_target["id"] if wellness_target else WELLNESS_SPREADSHEET_ID
+                    sh_w = gc.open_by_key(wellness_id)
+                    ws_w_names = [w.title for w in sh_w.worksheets()]
+                    ws_w = sh_w.worksheet("Form Responses 1") if "Form Responses 1" in ws_w_names else sh_w.get_worksheet(0)
+                    sheet_data = ws_w.get_all_records()
                     if sheet_data:
                         full_df = pd.DataFrame(sheet_data)
-                        filtered_df = full_df[full_df["Username"] == tgt_uid]
+                        name_col = "Name" if "Name" in full_df.columns else ("Athlete Name" if "Athlete Name" in full_df.columns else full_df.columns[0])
+                        filtered_df = full_df[full_df[name_col].astype(str).str.lower().str.strip() == selected_name.lower().strip()]
                         if not filtered_df.empty:
                             st.dataframe(filtered_df, use_container_width=True)
                         else:
@@ -244,7 +263,7 @@ else:
                     else:
                         st.caption("No wellness rows logged.")
                 except Exception as e:
-                    st.caption(f"Wellness log feed status: {str(e)}")
+                    st.caption(f"Wellness log feed status: {repr(e)}")
     else:
         st.title(f"🏃‍♂️ Performance & Wellness Hub: {st.session_state['name']}")
         c1, c2 = st.columns(2)
@@ -274,9 +293,14 @@ else:
                     calculated_au = duration * rpe
                     try:
                         gc = get_gspread_client()
-                        sheet = gc.open_by_key(WELLNESS_SPREADSHEET_ID).worksheet("Session_RPE_Logs")
+                        files = gc.list_spreadsheet_files()
+                        wellness_target = next((f for f in files if "wellness" in f["name"].lower()), None)
+                        wellness_id = wellness_target["id"] if wellness_target else WELLNESS_SPREADSHEET_ID
+                        sh_w = gc.open_by_key(wellness_id)
+                        ws_w_names = [w.title for w in sh_w.worksheets()]
+                        ws_w = sh_w.worksheet("Form Responses 1") if "Form Responses 1" in ws_w_names else sh_w.get_worksheet(0)
                         timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                        sheet.append_row([timestamp, st.session_state["username"], st.session_state["name"], duration, rpe, calculated_au, notes])
+                        ws_w.append_row([timestamp, st.session_state["name"], duration, rpe, calculated_au, notes])
                         st.success(f"💪 Workout Logged Live to Sheets Tab! Workload Score: {calculated_au} AU.")
                     except Exception as e:
-                        st.error(f"Sheet Append Interrupted: {str(e)}")
+                        st.error(f"Sheet Append Interrupted: {repr(e)}")
