@@ -5,7 +5,6 @@ import matplotlib.pyplot as plt
 from datetime import datetime
 from google.oauth2.service_account import Credentials
 import gspread
-import json
 import re
 
 st.set_page_config(page_title="S-ACE Cloud Performance Portal", layout="wide", page_icon="🏃‍♂️")
@@ -61,24 +60,28 @@ def get_raw_sheet_grid():
 
 def fetch_athlete_live_track_data(athlete_name, event_type):
     raw_grid = get_raw_sheet_grid()
-    if not raw_grid or len(raw_grid) < 2 or raw_grid[0][0] == "ERROR": return None
+    if not raw_grid or len(raw_grid) < 2 or raw_grid[0][0] == "ERROR":
+        return None
 
     headers = [str(h).strip().lower() for h in raw_grid[0]]
     data_rows = raw_grid[1:]
 
     name_idx = next((i for i, h in enumerate(headers) if "athlete" in h or "name" in h), -1)
     date_idx = next((i for i, h in enumerate(headers) if "date" in h or "timestamp" in h), -1)
-    if name_idx == -1: return None
+    if name_idx == -1:
+        return None
 
     target_kw = "100" if "100M" in event_type else ("200" if "200M" in event_type else ("400" if "400M" in event_type else "jump"))
     event_indices = [i for i, h in enumerate(headers) if target_kw in h]
-    if not event_indices: return None
+    if not event_indices:
+        return None
 
     parsed_history = []
     clean_search = athlete_name.lower().strip()
 
     for row in data_rows:
-        if len(row) <= name_idx: continue
+        if len(row) <= name_idx:
+            continue
         row_name = str(row[name_idx]).lower().strip()
         if clean_search == row_name or clean_search in row_name:
             year = 2026
@@ -88,7 +91,8 @@ def fetch_athlete_live_track_data(athlete_name, event_type):
                     year = int(year_match.group())
 
             for idx in event_indices:
-                if len(row) <= idx: continue
+                if len(row) <= idx:
+                    continue
                 val_str = str(row[idx]).lower().replace('s', '').replace('m', '').replace(',', '.').strip()
                 if val_str and val_str not in ["nan", "0", "0.0", "-"]:
                     try:
@@ -98,7 +102,8 @@ def fetch_athlete_live_track_data(athlete_name, event_type):
                     except ValueError:
                         continue
 
-    if not parsed_history: return None
+    if not parsed_history:
+        return None
     res_df = pd.DataFrame(parsed_history)
     if "jump" in target_kw:
         res_df = res_df.groupby("Year", as_index=False).max()
@@ -107,19 +112,23 @@ def fetch_athlete_live_track_data(athlete_name, event_type):
     return res_df.sort_values(by="Year")
 
 def calculate_ape_points(mark, event, gender, current_age, season_year):
-    if pd.isna(mark) or mark <= 0: return 0
-    years_back = 2026 - season_year
-    historical_age = current_age - years_back
-    
+    if pd.isna(mark) or mark <= 0:
+        return 0
     if "100" in event:
-        if gender == "boy": pts = 1000 - ((mark - 10.50) * 150) if mark > 10.50 else 1000
-        else: pts = 1000 - ((mark - 11.50) * 130) if mark > 11.50 else 1000
+        if gender == "boy":
+            pts = 1000 - ((mark - 10.50) * 150) if mark > 10.50 else 1000
+        else:
+            pts = 1000 - ((mark - 11.50) * 130) if mark > 11.50 else 1000
     elif "200" in event:
-        if gender == "boy": pts = 1000 - ((mark - 21.20) * 70) if mark > 21.20 else 1000
-        else: pts = 1000 - ((mark - 24.00) * 65) if mark > 24.00 else 1000
+        if gender == "boy":
+            pts = 1000 - ((mark - 21.20) * 70) if mark > 21.20 else 1000
+        else:
+            pts = 1000 - ((mark - 24.00) * 65) if mark > 24.00 else 1000
     elif "400" in event:
-        if gender == "boy": pts = 1000 - ((mark - 48.00) * 35) if mark > 48.00 else 1000
-        else: pts = 1000 - ((mark - 56.00) * 30) if mark > 56.00 else 1000
+        if gender == "boy":
+            pts = 1000 - ((mark - 48.00) * 35) if mark > 48.00 else 1000
+        else:
+            pts = 1000 - ((mark - 56.00) * 30) if mark > 56.00 else 1000
     else:
         pts = (mark / 6.50) * 1000 if mark < 6.50 else 1000
     return int(min(max(pts, 0), 1000))
@@ -140,7 +149,8 @@ if not st.session_state["authenticated"]:
             st.session_state["username"] = username
             st.session_state["name"] = USER_DB[username]["name"]
             st.rerun()
-        else: st.error("Access Denied.")
+        else:
+            st.error("Access Denied.")
 else:
     user_info = USER_DB[st.session_state["username"]]
     st.sidebar.title(f"User: {st.session_state['name']}")
@@ -203,7 +213,7 @@ else:
                 else:
                     st.info("📅 No marks found for this athlete in the selected event.")
 
-                                with st.expander("🛠️ Debug: Inspect Raw Google Sheet Data"):
+                with st.expander("🛠️ Debug: Inspect Raw Google Sheet Data"):
                     grid = get_raw_sheet_grid()
                     st.write(f"**Total rows read:** {len(grid)}")
                     if grid:
@@ -211,25 +221,30 @@ else:
                         if len(grid) > 1:
                             st.write("**Row 2 Sample:**", grid[1])
 
-
             with col_b:
                 st.write("#### 🏋️ Strategic Gym Deployment Profile")
-                if tgt_uid in ["clayton.vw", "mitchell.m", "lezario.m", "ashrin.f"]: st.info("Track Directive Group: **Track A (Progressive Strength Overload)**")
-                elif tgt_uid in ["sharon.s", "kevin.l", "tamzin.a"]: st.warning("Track Directive Group: **Track B (Biomechanical Alignment Focus)**")
-                else: st.success("Track Directive Group: **Foundational Conditioning**")
+                if tgt_uid in ["clayton.vw", "mitchell.m", "lezario.m", "ashrin.f"]:
+                    st.info("Track Directive Group: **Track A (Progressive Strength Overload)**")
+                elif tgt_uid in ["sharon.s", "kevin.l", "tamzin.a"]:
+                    st.warning("Track Directive Group: **Track B (Biomechanical Alignment Focus)**")
+                else:
+                    st.success("Track Directive Group: **Foundational Conditioning**")
                 
                 st.write("#### 📋 Logged Practice Feed Logs (Live Filtered rows)")
-                gc = get_gspread_client()
-                if gc is not None:
-                    try:
-                        sheet_data = gc.open_by_key(WELLNESS_SPREADSHEET_ID).worksheet("Session_RPE_Logs").get_all_records()
-                        if sheet_data:
-                            full_df = pd.DataFrame(sheet_data)
-                            filtered_df = full_df[full_df["Username"] == tgt_uid]
-                            if not filtered_df.empty: st.dataframe(filtered_df, use_container_width=True)
-                            else: st.caption(f"No workout logs captured for {selected_name} yet.")
-                        else: st.caption("No wellness rows logged.")
-                    except Exception: st.caption("Awaiting sheet cell synchronization updates.")
+                try:
+                    gc = get_gspread_client()
+                    sheet_data = gc.open_by_key(WELLNESS_SPREADSHEET_ID).worksheet("Session_RPE_Logs").get_all_records()
+                    if sheet_data:
+                        full_df = pd.DataFrame(sheet_data)
+                        filtered_df = full_df[full_df["Username"] == tgt_uid]
+                        if not filtered_df.empty:
+                            st.dataframe(filtered_df, use_container_width=True)
+                        else:
+                            st.caption(f"No workout logs captured for {selected_name} yet.")
+                    else:
+                        st.caption("No wellness rows logged.")
+                except Exception as e:
+                    st.caption(f"Wellness log feed status: {str(e)}")
     else:
         st.title(f"🏃‍♂️ Performance & Wellness Hub: {st.session_state['name']}")
         c1, c2 = st.columns(2)
@@ -246,7 +261,8 @@ else:
                 ax2.set_ylim(400, 1050)
                 ax2.grid(True, linestyle=":")
                 st.pyplot(fig2)
-            else: st.warning("🔍 No marks found for this event.")
+            else:
+                st.warning("🔍 No marks found for this event.")
 
         with c2:
             st.subheader("📝 Post-Workout Practice Matrix Capture Form")
@@ -256,11 +272,11 @@ else:
                 notes = st.text_area("Biomechanical Feedback (Pain Markers / Hip Tension / Joint Fatigue)")
                 if st.form_submit_button("Submit Workout Metrics"):
                     calculated_au = duration * rpe
-                    gc = get_gspread_client()
-                    if gc is not None:
-                        try:
-                            sheet = gc.open_by_key(WELLNESS_SPREADSHEET_ID).worksheet("Session_RPE_Logs")
-                            timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                            sheet.append_row([timestamp, st.session_state["username"], st.session_state["name"], duration, rpe, calculated_au, notes])
-                            st.success(f"💪 Workout Logged Live to Sheets Tab! Workload Score: {calculated_au} AU.")
-                        except Exception as e: st.error(f"Sheet Append Interrupted: {str(e)}")
+                    try:
+                        gc = get_gspread_client()
+                        sheet = gc.open_by_key(WELLNESS_SPREADSHEET_ID).worksheet("Session_RPE_Logs")
+                        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                        sheet.append_row([timestamp, st.session_state["username"], st.session_state["name"], duration, rpe, calculated_au, notes])
+                        st.success(f"💪 Workout Logged Live to Sheets Tab! Workload Score: {calculated_au} AU.")
+                    except Exception as e:
+                        st.error(f"Sheet Append Interrupted: {str(e)}")
